@@ -1,0 +1,664 @@
+{% extends "base.html" %}
+
+{% block title %}Review Files{% endblock %}
+
+{% block content %}
+<div class="review-layout">
+    <!-- Left Sidebar - Combined Search -->
+    <aside class="left-sidebar">
+        <div class="sidebar-card">
+            <h3>🔍 Advanced Search</h3>
+            <form method="GET" action="/review" class="search-form">
+                <div class="search-input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">User ID:</label>
+                    <input
+                        type="text"
+                        name="user_id"
+                        placeholder="Enter User ID (e.g., 123 or -123)"
+                        value="{{ search_user_id }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">File Name:</label>
+                    <input
+                        type="text"
+                        name="file_name"
+                        placeholder="Enter file name keywords"
+                        value="{{ search_file_name }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">Forwarded From:</label>
+                    <input
+                        type="text"
+                        name="forward_from"
+                        placeholder="Name, username or chat title"
+                        value="{{ search_forward_from }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 16px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 8px; display: block;">File Size (MB):</label>
+                    <div class="range-value-labels">
+                        <span id="sizeMinLabel">{{ search_size_min }} MB</span>
+                        <span id="sizeMaxLabel">{{ search_size_max }} MB</span>
+                    </div>
+                    <div class="range-slider-container">
+                        <div class="range-track">
+                            <div class="range-fill" id="sizeFill"></div>
+                        </div>
+                        <input type="range" name="size_min" id="sizeMin" min="0" max="4200" step="10"
+                               value="{{ search_size_min }}" class="range-input">
+                        <input type="range" name="size_max" id="sizeMax" min="0" max="4200" step="10"
+                               value="{{ search_size_max }}" class="range-input">
+                    </div>
+                    <div class="range-edge-labels">
+                        <span>0 MB</span>
+                        <span>4200 MB</span>
+                    </div>
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">File Hash:</label>
+                    <input
+                        type="text"
+                        name="id"
+                        placeholder="24-char MongoDB ObjectId"
+                        value="{{ search_id }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <button type="submit" class="btn btn-search" style="width: 100%;">🔍 Search</button>
+            </form>
+
+            {% if has_any_filter %}
+            <div class="search-active" style="margin-top: 15px;">
+                {% if let Some(s) = stats %}
+                {% if !search_user_id.is_empty() && !search_file_name.is_empty() %}
+                    {% if s.is_exclusion %}
+                    <span class="search-badge search-badge-exclude">Excluding User {{ s.search_user_id }}</span>
+                    {% else %}
+                    <span class="search-badge search-badge-include">User {{ search_user_id }}</span>
+                    {% endif %}
+                    <span class="search-badge search-badge-include">+ "{{ search_file_name }}"</span>
+                {% else if !search_user_id.is_empty() %}
+                    {% if s.is_exclusion %}
+                    <span class="search-badge search-badge-exclude">Excluding User {{ s.search_user_id }}</span>
+                    {% else %}
+                    <span class="search-badge search-badge-include">User {{ search_user_id }}</span>
+                    {% endif %}
+                {% else if !search_file_name.is_empty() %}
+                    <span class="search-badge search-badge-include">"{{ search_file_name }}"</span>
+                {% endif %}
+                {% endif %}
+                {% if size_filter_active %}
+                    <span class="search-badge search-badge-size">📏 {{ search_size_min }}–{{ search_size_max }} MB</span>
+                {% endif %}
+                {% if !search_forward_from.is_empty() %}
+                    <span class="search-badge search-badge-forward">👤 "{{ search_forward_from }}"</span>
+                {% endif %}
+                {% if !search_id.is_empty() %}
+                    <span class="search-badge search-badge-id">🆔 {{ search_id|truncate(8) }}</span>
+                {% endif %}
+                <a href="/review" class="btn btn-clear">Clear All</a>
+            </div>
+            {% endif %}
+
+        </div>
+
+        <!-- Regex Rename Card -->
+        <div class="sidebar-card" style="margin-top: 16px;">
+            <h3>&#x270F;&#xFE0F; Regex Rename</h3>
+            <div class="form-group">
+                <label>Pattern <span style="font-size:0.75em;color:#888;">(regex)</span></label>
+                <input type="text" id="regex-pattern" class="form-control" placeholder="e.g. \s+" spellcheck="false" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label>Replace with <span style="font-size:0.75em;color:#888;">(use $1, $2 ...)</span></label>
+                <input type="text" id="regex-replace" class="form-control" placeholder="e.g. _" spellcheck="false" autocomplete="off">
+            </div>
+            <div id="regex-error" style="display:none;color:#dc2626;font-size:0.82em;margin-bottom:8px;"></div>
+            <button class="btn btn-primary" style="width:100%;" onclick="applyRegexRename()">Rename All</button>
+            <div id="regex-result" style="display:none;margin-top:8px;font-size:0.83em;border-radius:6px;padding:6px 10px;"></div>
+        </div>
+    </aside>
+
+    <!-- Center Content - File Review -->
+    <main class="review-main">
+        <div class="review-container">
+            <h2>{{ page_heading }}</h2>
+
+            {% if !files.is_empty() %}
+            <div class="review-info">
+                <p>Review each file and click Accept or Reject. You can skip files by not selecting either option.</p>
+                <p>Total files to review: <strong>{{ files.len() }}</strong></p>
+            </div>
+
+    <div id="files-container">
+        {% for file in files %}
+        <div class="file-card" data-file-id="{{ file.id }}">
+            <div class="file-header">
+                <h3>
+                    <span class="file-index">{{ file.index }}.</span>
+                    <textarea
+                        class="filename-input"
+                        data-original="{{ file.file_name }}"
+                        rows="1"
+                        title="Click to edit file name"
+                    >{{ file.file_name }}</textarea>
+                </h3>
+                <div class="file-id-row">
+                    <div class="file-id">ID: {{ file.id }}</div>
+                    <div class="file-preview-btns">
+                        <a href="https://fcdn.koyeb.app/dl/{{ file.id }}/{{ file.file_name }}" target="_blank" rel="noopener noreferrer" class="btn btn-dl">⬇ DL</a>
+                        <a href="https://fcdn.koyeb.app/watch/{{ file.id }}/{{ file.file_name }}" target="_blank" rel="noopener noreferrer" class="btn btn-watch">▶ Watch</a>
+                    </div>
+                </div>
+            </div>
+            <div class="file-details">
+                <div class="detail-row">
+                    <span class="label">User ID:</span>
+                    <span class="value">{{ file.user_id }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">File Size:</span>
+                    <span class="value">{{ file.file_size }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">MIME Type:</span>
+                    <span class="value">{{ file.mime_type }}</span>
+                </div>
+
+                {% if file.has_forward_info %}
+                <div class="forward-info">
+                    <hr>
+                    <strong>Forward Information:</strong>
+                    {% if !file.username.is_empty() %}
+                    <div class="detail-row">
+                        <span class="label">Username:</span>
+                        <span class="value">@{{ file.username }}</span>
+                    </div>
+                    {% endif %}
+                    {% if !file.forward_first_name.is_empty() %}
+                    <div class="detail-row">
+                        <span class="label">Forward First Name:</span>
+                        <span class="value">{{ file.forward_first_name }}</span>
+                    </div>
+                    {% endif %}
+                    {% if !file.forward_username.is_empty() %}
+                    <div class="detail-row">
+                        <span class="label">Forward Username:</span>
+                        <span class="value">@{{ file.forward_username }}</span>
+                    </div>
+                    {% endif %}
+                    {% if !file.forward_chat_title.is_empty() %}
+                    <div class="detail-row">
+                        <span class="label">Forward Chat Title:</span>
+                        <span class="value">{{ file.forward_chat_title }}</span>
+                    </div>
+                    {% endif %}
+                    {% if !file.forward_chat_username.is_empty() %}
+                    <div class="detail-row">
+                        <span class="label">Forward Chat Username:</span>
+                        <span class="value">@{{ file.forward_chat_username }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="special-hash-row">
+                <label class="special-hash-label">
+                    <input type="checkbox" class="special-hash-checkbox" data-file-id="{{ file.id }}">
+                    🔖 Add to Special Hash
+                </label>
+            </div>
+            <div class="file-actions">
+                <button class="btn btn-accept" onclick="selectDecision('{{ file.id }}', 'accept', this)">
+                    ✓ Accept
+                </button>
+                <button class="btn btn-reject" onclick="selectDecision('{{ file.id }}', 'reject', this)">
+                    ✗ Reject
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="submit-section">
+        <button id="showSummaryBtn" class="btn btn-primary btn-large" onclick="showSummary()">
+            Review Summary & Submit
+        </button>
+    </div>
+
+    <!-- Summary Modal -->
+    <div id="summaryModal" class="modal">
+        <div class="modal-content">
+            <h2>Review Summary</h2>
+            <div id="summaryContent"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeSummary()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitDecisions()">Confirm & Submit</button>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="no-files">
+        <p>🎉 No files pending review! All caught up.</p>
+        <a href="/stats" class="btn btn-primary">View Statistics</a>
+    </div>
+    {% endif %}
+        </div>
+    </main>
+
+    <!-- Right Sidebar - Combined Stats -->
+    <aside class="right-sidebar">
+        {% if let Some(s) = stats %}
+        <div class="sidebar-card">
+            {% if !search_user_id.is_empty() && !search_file_name.is_empty() %}
+                <h3>🎯 Combined Search Stats</h3>
+                <div class="user-stats-header">
+                    {% if s.is_exclusion %}
+                    <div class="user-id-display user-id-excluded" style="font-size: 0.85em; padding: 8px;">Excluding User {{ s.search_user_id }}<br>+ Matching "{{ s.search_file_name }}"</div>
+                    {% else %}
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); font-size: 0.85em; padding: 8px;">User {{ s.search_user_id }}<br>+ "{{ s.search_file_name }}"</div>
+                    {% endif %}
+                </div>
+            {% else if !search_user_id.is_empty() %}
+                {% if s.is_exclusion %}
+                <h3>🚫 Excluded User Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display user-id-excluded">Excluding: {{ s.search_user_id }}</div>
+                </div>
+                <div class="exclusion-info">
+                    <p>Showing files from all users <strong>except</strong> this one.</p>
+                    {% if s.has_excluded_count %}
+                    <p class="exclusion-count">{{ s.excluded_count_fmt }} pending files excluded</p>
+                    {% endif %}
+                </div>
+                {% else %}
+                <h3>📊 User Statistics</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display">User ID: {{ s.search_user_id }}</div>
+                </div>
+                {% endif %}
+            {% else if !search_file_name.is_empty() %}
+                <h3>📂 File Search Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        "{{ s.search_file_name }}"
+                    </div>
+                </div>
+            {% else if s.size_filter_active %}
+                <h3>📏 Size Range Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        {{ s.search_size_min }}–{{ s.search_size_max }} MB
+                    </div>
+                </div>
+            {% endif %}
+            {% if s.size_filter_active && (!search_user_id.is_empty() || !search_file_name.is_empty()) %}
+            <div class="size-active-tag">📏 Size: {{ s.search_size_min }}–{{ s.search_size_max }} MB</div>
+            {% endif %}
+
+            <div class="user-stats-grid">
+                <div class="user-stat-box stat-total">
+                    <div class="user-stat-icon">📁</div>
+                    <div class="user-stat-value">{{ s.total_fmt }}</div>
+                    <div class="user-stat-label">Total Files</div>
+                </div>
+
+                <div class="user-stat-box stat-pending">
+                    <div class="user-stat-icon">⏳</div>
+                    <div class="user-stat-value">{{ s.pending_fmt }}</div>
+                    <div class="user-stat-label">Pending</div>
+                </div>
+
+                <div class="user-stat-box stat-reviewed">
+                    <div class="user-stat-icon">✓</div>
+                    <div class="user-stat-value">{{ s.reviewed_fmt }}</div>
+                    <div class="user-stat-label">Reviewed</div>
+                </div>
+
+                <div class="user-stat-box stat-accepted">
+                    <div class="user-stat-icon">✓</div>
+                    <div class="user-stat-value">{{ s.accepted_fmt }}</div>
+                    <div class="user-stat-label">Accepted</div>
+                </div>
+
+                <div class="user-stat-box stat-rejected">
+                    <div class="user-stat-icon">✗</div>
+                    <div class="user-stat-value">{{ s.rejected_fmt }}</div>
+                    <div class="user-stat-label">Rejected</div>
+                </div>
+            </div>
+
+            <div class="user-progress-section">
+                <h4>Review Progress</h4>
+                <div class="user-progress-bar">
+                    <div class="user-progress-fill" style="width: {{ s.progress_pct_fmt }}%">
+                        <span class="user-progress-text">{{ s.progress_pct_fmt }}%</span>
+                    </div>
+                </div>
+                <div class="user-progress-label">
+                    {{ s.reviewed_fmt }} / {{ s.total_fmt }} files reviewed
+                </div>
+            </div>
+
+            <div class="user-metrics">
+                <div class="user-metric-item">
+                    <span class="metric-name">Acceptance Rate:</span>
+                    <span class="metric-value-green">{{ s.acceptance_rate_fmt }}%</span>
+                </div>
+                <div class="user-metric-item">
+                    <span class="metric-name">Rejection Rate:</span>
+                    <span class="metric-value-red">{{ s.rejection_rate_fmt }}%</span>
+                </div>
+                <div class="user-metric-item">
+                    <span class="metric-name">Sessions Left:</span>
+                    <span class="metric-value">{{ s.sessions_left_fmt }}</span>
+                </div>
+            </div>
+
+            {% if !search_user_id.is_empty() && !search_file_name.is_empty() %}
+            <div class="exclusion-note" style="background: #e8f5e9;">
+                <small>✨ Combined search active! Stats show files matching BOTH criteria.</small>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="sidebar-card">
+            <h3>📊 Search Statistics</h3>
+            <div class="sidebar-placeholder">
+                <p>🔍 Use search to see detailed statistics</p>
+                <ul>
+                    <li><strong>User ID only:</strong> User-specific stats</li>
+                    <li><strong>File name only:</strong> Search query stats</li>
+                    <li><strong>Both combined:</strong> Precise filtering stats</li>
+                    <li>Total matching files</li>
+                    <li>Pending reviews</li>
+                    <li>Accepted/Rejected counts</li>
+                    <li>Review progress percentage</li>
+                    <li>Acceptance & rejection rates</li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </aside>
+</div>
+
+<script>
+    const decisions = {};
+
+    function selectDecision(fileId, decision, button) {
+        const card = button.closest('.file-card');
+        const buttons = card.querySelectorAll('.file-actions .btn');
+
+        if (button.classList.contains('selected')) {
+            button.classList.remove('selected');
+            delete decisions[fileId];
+        } else {
+            buttons.forEach(btn => btn.classList.remove('selected'));
+            button.classList.add('selected');
+            decisions[fileId] = decision;
+        }
+
+        updateSubmitButton();
+    }
+
+    function updateSubmitButton() {
+        const count = Object.keys(decisions).length;
+        const btn = document.getElementById('showSummaryBtn');
+        if (count > 0) {
+            btn.textContent = `Review Summary & Submit (${count} decisions)`;
+            btn.disabled = false;
+        } else {
+            btn.textContent = 'Review Summary & Submit';
+        }
+    }
+
+    function showSummary() {
+        if (Object.keys(decisions).length === 0) {
+            alert('Please make at least one decision before submitting.');
+            return;
+        }
+
+        let acceptCount = 0;
+        let rejectCount = 0;
+        let acceptList = [];
+        let rejectList = [];
+
+        document.querySelectorAll('.file-card').forEach(card => {
+            const fileId = card.dataset.fileId;
+            const fileInput = card.querySelector('.filename-input');
+            const fileName = fileInput.value.trim() || fileInput.dataset.original;
+            const originalName = fileInput.dataset.original;
+            const wasRenamed = fileName !== originalName;
+
+            if (decisions[fileId] === 'accept') {
+                acceptCount++;
+                acceptList.push({ name: fileName, original: originalName, renamed: wasRenamed });
+            } else if (decisions[fileId] === 'reject') {
+                rejectCount++;
+                rejectList.push({ name: fileName, original: originalName, renamed: wasRenamed });
+            }
+        });
+
+        let summaryHTML = `
+            <div class="summary-stats">
+                <div class="stat-box accept-stat">
+                    <div class="stat-number">${acceptCount}</div>
+                    <div class="stat-label">Files to Accept</div>
+                </div>
+                <div class="stat-box reject-stat">
+                    <div class="stat-number">${rejectCount}</div>
+                    <div class="stat-label">Files to Reject</div>
+                </div>
+            </div>
+        `;
+
+        if (acceptList.length > 0) {
+            summaryHTML += '<div class="summary-section"><h3>✓ Accepting:</h3><ul>';
+            acceptList.forEach(item => {
+                if (item.renamed) {
+                    summaryHTML += `<li>${item.name} <span class="renamed-badge">✏ renamed from: ${item.original}</span></li>`;
+                } else {
+                    summaryHTML += `<li>${item.name}</li>`;
+                }
+            });
+            summaryHTML += '</ul></div>';
+        }
+
+        if (rejectList.length > 0) {
+            summaryHTML += '<div class="summary-section"><h3>✗ Rejecting:</h3><ul>';
+            rejectList.forEach(item => {
+                if (item.renamed) {
+                    summaryHTML += `<li>${item.name} <span class="renamed-badge">✏ renamed from: ${item.original}</span></li>`;
+                } else {
+                    summaryHTML += `<li>${item.name}</li>`;
+                }
+            });
+            summaryHTML += '</ul></div>';
+        }
+
+        const specialHashList = [];
+        document.querySelectorAll('.file-card').forEach(card => {
+            const checkbox = card.querySelector('.special-hash-checkbox');
+            if (checkbox && checkbox.checked) {
+                const fileInput = card.querySelector('.filename-input');
+                const fileName = fileInput.value.trim() || fileInput.dataset.original;
+                specialHashList.push(fileName);
+            }
+        });
+
+        if (specialHashList.length > 0) {
+            summaryHTML += '<div class="summary-section"><h3>🔖 Add to Special Hash:</h3><ul>';
+            specialHashList.forEach(name => {
+                summaryHTML += `<li>${name}</li>`;
+            });
+            summaryHTML += '</ul></div>';
+        }
+
+        document.getElementById('summaryContent').innerHTML = summaryHTML;
+        document.getElementById('summaryModal').style.display = 'flex';
+    }
+
+    function closeSummary() {
+        document.getElementById('summaryModal').style.display = 'none';
+    }
+
+    function applyRegexRename() {
+        const patternStr = document.getElementById('regex-pattern').value;
+        const replacement = document.getElementById('regex-replace').value;
+        const errEl = document.getElementById('regex-error');
+        const resEl = document.getElementById('regex-result');
+        errEl.style.display = 'none';
+        resEl.style.display = 'none';
+
+        if (!patternStr.trim()) {
+            errEl.textContent = 'Please enter a regex pattern.';
+            errEl.style.display = 'block';
+            return;
+        }
+
+        let rx;
+        try {
+            rx = new RegExp(patternStr, 'g');
+        } catch (e) {
+            errEl.textContent = 'Invalid regex: ' + e.message;
+            errEl.style.display = 'block';
+            return;
+        }
+
+        const textareas = document.querySelectorAll('.filename-input');
+        let renamed = 0;
+        textareas.forEach(ta => {
+            const newVal = ta.value.replace(rx, replacement);
+            if (newVal !== ta.value) {
+                ta.value = newVal;
+                autoResize(ta);
+                if (ta.value.trim() !== ta.dataset.original) {
+                    ta.classList.add('edited');
+                } else {
+                    ta.classList.remove('edited');
+                }
+                renamed++;
+            }
+        });
+
+        resEl.textContent = renamed > 0
+            ? '\u2713 Renamed ' + renamed + ' file' + (renamed > 1 ? 's' : '') + '.'
+            : 'No filenames matched the pattern.';
+        resEl.style.color    = renamed > 0 ? '#065f46' : '#92400e';
+        resEl.style.background  = renamed > 0 ? '#d1fae5' : '#fef3c7';
+        resEl.style.border   = renamed > 0 ? '1px solid #6ee7b7' : '1px solid #fcd34d';
+        resEl.style.display  = 'block';
+    }
+
+    function autoResize(el) {
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+    }
+
+    document.querySelectorAll('.filename-input').forEach(textarea => {
+        autoResize(textarea);
+
+        textarea.addEventListener('input', () => {
+            autoResize(textarea);
+            if (textarea.value.trim() !== textarea.dataset.original) {
+                textarea.classList.add('edited');
+            } else {
+                textarea.classList.remove('edited');
+            }
+        });
+
+        textarea.addEventListener('keydown', e => {
+            if (e.key === 'Enter') e.preventDefault();
+        });
+    });
+
+    function updateSizeSlider() {
+        const minVal = parseInt(document.getElementById('sizeMin').value);
+        const maxVal = parseInt(document.getElementById('sizeMax').value);
+        const pct = v => (v / 4200) * 100;
+        const fill = document.getElementById('sizeFill');
+        fill.style.left = pct(minVal) + '%';
+        fill.style.width = (pct(maxVal) - pct(minVal)) + '%';
+        document.getElementById('sizeMinLabel').textContent = minVal.toLocaleString() + ' MB';
+        document.getElementById('sizeMaxLabel').textContent = maxVal.toLocaleString() + ' MB';
+    }
+
+    const sizeMinEl = document.getElementById('sizeMin');
+    const sizeMaxEl = document.getElementById('sizeMax');
+    if (sizeMinEl && sizeMaxEl) {
+        sizeMinEl.addEventListener('input', () => {
+            if (parseInt(sizeMinEl.value) > parseInt(sizeMaxEl.value)) sizeMinEl.value = sizeMaxEl.value;
+            updateSizeSlider();
+        });
+        sizeMaxEl.addEventListener('input', () => {
+            if (parseInt(sizeMaxEl.value) < parseInt(sizeMinEl.value)) sizeMaxEl.value = sizeMinEl.value;
+            updateSizeSlider();
+        });
+        updateSizeSlider();
+    }
+
+    function submitDecisions() {
+        if (Object.keys(decisions).length === 0) {
+            alert('No decisions to submit.');
+            return;
+        }
+
+        const submitBtn = document.querySelector('.modal-actions .btn-primary');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+
+        const fileNames = {};
+        document.querySelectorAll('.file-card').forEach(card => {
+            const fileId = card.dataset.fileId;
+            if (decisions[fileId]) {
+                const fileInput = card.querySelector('.filename-input');
+                fileNames[fileId] = fileInput.value.trim() || fileInput.dataset.original;
+            }
+        });
+
+        const specialHashIds = {};
+        document.querySelectorAll('.file-card').forEach(card => {
+            const fileId = card.dataset.fileId;
+            const checkbox = card.querySelector('.special-hash-checkbox');
+            if (checkbox && checkbox.checked) {
+                specialHashIds[fileId] = true;
+            }
+        });
+
+        fetch('/submit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ decisions, file_names: fileNames, special_hash: specialHashIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Confirm & Submit';
+            }
+        })
+        .catch(error => {
+            alert('Error submitting decisions: ' + error);
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Confirm & Submit';
+        });
+    }
+</script>
+{% endblock %}

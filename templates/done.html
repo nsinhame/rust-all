@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+
+{% block title %}Done – Reviewed Files{% endblock %}
+
+{% block content %}
+<div class="review-layout">
+    <!-- Left Sidebar - Advanced Search -->
+    <aside class="left-sidebar">
+        <div class="sidebar-card">
+            <h3>🔍 Advanced Search</h3>
+            <form method="GET" action="/done" class="search-form">
+                <div class="search-input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">User ID:</label>
+                    <input
+                        type="text"
+                        name="user_id"
+                        placeholder="Enter User ID (e.g., 123 or -123)"
+                        value="{{ search_user_id }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">File Name:</label>
+                    <input
+                        type="text"
+                        name="file_name"
+                        placeholder="Enter file name keywords"
+                        value="{{ search_file_name }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">Forwarded From:</label>
+                    <input
+                        type="text"
+                        name="forward_from"
+                        placeholder="Name, username or chat title"
+                        value="{{ search_forward_from }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">Reviewed By:</label>
+                    <input
+                        type="text"
+                        name="reviewed_by"
+                        placeholder="e.g. nik or prdp"
+                        value="{{ search_reviewed_by }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">Status:</label>
+                    <select name="status" class="search-input">
+                        <option value=""   {% if search_status.is_empty() %}selected{% endif %}>All (accepted + rejected)</option>
+                        <option value="accepted" {% if search_status == "accepted" %}selected{% endif %}>Accepted only</option>
+                        <option value="rejected" {% if search_status == "rejected" %}selected{% endif %}>Rejected only</option>
+                    </select>
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 16px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 8px; display: block;">File Size (MB):</label>
+                    <div class="range-value-labels">
+                        <span id="sizeMinLabel">{{ search_size_min }} MB</span>
+                        <span id="sizeMaxLabel">{{ search_size_max }} MB</span>
+                    </div>
+                    <div class="range-slider-container">
+                        <div class="range-track">
+                            <div class="range-fill" id="sizeFill"></div>
+                        </div>
+                        <input type="range" name="size_min" id="sizeMin" min="0" max="4200" step="10"
+                               value="{{ search_size_min }}" class="range-input">
+                        <input type="range" name="size_max" id="sizeMax" min="0" max="4200" step="10"
+                               value="{{ search_size_max }}" class="range-input">
+                    </div>
+                    <div class="range-edge-labels">
+                        <span>0 MB</span>
+                        <span>4200 MB</span>
+                    </div>
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">File Hash:</label>
+                    <input
+                        type="text"
+                        name="id"
+                        placeholder="24-char MongoDB ObjectId"
+                        value="{{ search_id }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <button type="submit" class="btn btn-search" style="width: 100%;">🔍 Search</button>
+            </form>
+
+            {% if let Some(s) = stats %}
+            <div class="search-active" style="margin-top: 15px;">
+                {% if !search_user_id.is_empty() %}
+                    {% if s.is_exclusion %}
+                    <span class="search-badge search-badge-exclude">Excluding User {{ s.search_user_id }}</span>
+                    {% else %}
+                    <span class="search-badge search-badge-include">User {{ search_user_id }}</span>
+                    {% endif %}
+                {% endif %}
+                {% if !search_file_name.is_empty() %}
+                    <span class="search-badge search-badge-include">"{{ search_file_name }}"</span>
+                {% endif %}
+                {% if !search_forward_from.is_empty() %}
+                    <span class="search-badge search-badge-forward">👤 "{{ search_forward_from }}"</span>
+                {% endif %}
+                {% if !search_reviewed_by.is_empty() %}
+                    <span class="search-badge search-badge-reviewer">🙋 {{ search_reviewed_by }}</span>
+                {% endif %}
+                {% if search_status == "accepted" %}
+                    <span class="search-badge search-badge-accepted-filter">✓ Accepted</span>
+                {% else if search_status == "rejected" %}
+                    <span class="search-badge search-badge-rejected-filter">✗ Rejected</span>
+                {% endif %}
+                {% if size_filter_active %}
+                    <span class="search-badge search-badge-size">📏 {{ search_size_min }}–{{ search_size_max }} MB</span>
+                {% endif %}
+                {% if !search_id.is_empty() %}
+                    <span class="search-badge search-badge-id">🆔 {{ search_id|truncate(8) }}</span>
+                {% endif %}
+                <a href="/done" class="btn btn-clear">Clear All</a>
+            </div>
+            {% endif %}
+        </div>
+    </aside>
+
+    <!-- Center Content -->
+    <main class="review-main">
+        <div class="review-container">
+            <h2>{{ page_heading }}</h2>
+
+            {% if !files.is_empty() %}
+            <div class="review-info">
+                <p>Showing {{ files.len() }} reviewed file(s). Labels indicate the decision made by the reviewer.</p>
+            </div>
+
+            <div id="files-container">
+                {% for file in files %}
+                <div class="file-card {% if !file.special_type.is_empty() %}file-card-special{% else if file.is_public %}file-card-accepted{% else %}file-card-rejected{% endif %}">
+                    <div class="file-header">
+                        <h3>
+                            <span class="file-index">{{ file.index }}.</span>
+                            <span class="filename-done">{{ file.file_name }}</span>
+                        </h3>
+                        <div class="file-id-row">
+                            <div class="file-id">ID: {{ file.id }}</div>
+                            <div class="file-preview-btns">
+                                <a href="https://fcdn.koyeb.app/dl/{{ file.id }}/{{ file.file_name }}" target="_blank" rel="noopener noreferrer" class="btn btn-dl">⬇ DL</a>
+                                <a href="https://fcdn.koyeb.app/watch/{{ file.id }}/{{ file.file_name }}" target="_blank" rel="noopener noreferrer" class="btn btn-watch">▶ Watch</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="file-details">
+                        <div class="detail-row">
+                            <span class="label">User ID:</span>
+                            <span class="value">{{ file.user_id }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">File Size:</span>
+                            <span class="value">{{ file.file_size }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">MIME Type:</span>
+                            <span class="value">{{ file.mime_type }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Reviewed By:</span>
+                            <span class="value">{{ file.reviewed_by }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Reviewed At:</span>
+                            <span class="value">{{ file.reviewed_at }}</span>
+                        </div>
+
+                        {% if !file.special_type.is_empty() %}
+                        <div class="detail-row">
+                            <span class="label">Special Type:</span>
+                            <span class="value special-type-value">🔖 {{ file.special_type }}</span>
+                        </div>
+                        {% endif %}
+
+                        {% if file.has_forward_info %}
+                        <div class="forward-info">
+                            <hr>
+                            <strong>Forward Information:</strong>
+                            {% if !file.username.is_empty() %}
+                            <div class="detail-row">
+                                <span class="label">Username:</span>
+                                <span class="value">@{{ file.username }}</span>
+                            </div>
+                            {% endif %}
+                            {% if !file.forward_first_name.is_empty() %}
+                            <div class="detail-row">
+                                <span class="label">Forward First Name:</span>
+                                <span class="value">{{ file.forward_first_name }}</span>
+                            </div>
+                            {% endif %}
+                            {% if !file.forward_username.is_empty() %}
+                            <div class="detail-row">
+                                <span class="label">Forward Username:</span>
+                                <span class="value">@{{ file.forward_username }}</span>
+                            </div>
+                            {% endif %}
+                            {% if !file.forward_chat_title.is_empty() %}
+                            <div class="detail-row">
+                                <span class="label">Forward Chat Title:</span>
+                                <span class="value">{{ file.forward_chat_title }}</span>
+                            </div>
+                            {% endif %}
+                            {% if !file.forward_chat_username.is_empty() %}
+                            <div class="detail-row">
+                                <span class="label">Forward Chat Username:</span>
+                                <span class="value">@{{ file.forward_chat_username }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="file-status-label">
+                        {% if file.is_public %}
+                        <span class="status-badge status-accepted">✓ Accepted</span>
+                        {% else %}
+                        <span class="status-badge status-rejected">✗ Rejected</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div class="pagination">
+                {% for p in pages %}
+                <a href="{{ p.href }}" class="page-btn {% if p.active %}page-btn-active{% endif %}">{{ p.number }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="no-files">
+                <p>📭 No reviewed files found matching your search.</p>
+                <a href="/done" class="btn btn-primary">Clear Search</a>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- Right Sidebar - Stats -->
+    <aside class="right-sidebar">
+        {% if let Some(s) = stats %}
+        <div class="sidebar-card">
+            {% if !search_user_id.is_empty() %}
+                {% if s.is_exclusion %}
+                <h3>🚫 Excluded User Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display user-id-excluded">Excluding: {{ s.search_user_id }}</div>
+                </div>
+                {% else %}
+                <h3>📊 User Statistics</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display">User ID: {{ s.search_user_id }}</div>
+                </div>
+                {% endif %}
+            {% else if !search_file_name.is_empty() %}
+                <h3>📂 File Search Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        "{{ s.search_file_name }}"
+                    </div>
+                </div>
+            {% else if s.size_filter_active %}
+                <h3>📏 Size Range Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        {{ s.search_size_min }}–{{ s.search_size_max }} MB
+                    </div>
+                </div>
+            {% else if !search_reviewed_by.is_empty() %}
+                <h3>🙋 Reviewer Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: #065f46;">
+                        {{ s.search_reviewed_by }}
+                    </div>
+                </div>
+            {% else %}
+                <h3>📊 Search Statistics</h3>
+            {% endif %}
+
+            {% if s.size_filter_active && (!search_user_id.is_empty() || !search_file_name.is_empty()) %}
+            <div class="size-active-tag">📏 Size: {{ s.search_size_min }}–{{ s.search_size_max }} MB</div>
+            {% endif %}
+
+            <div class="user-stats-grid">
+                <div class="user-stat-box stat-total">
+                    <div class="user-stat-icon">📁</div>
+                    <div class="user-stat-value">{{ s.total_fmt }}</div>
+                    <div class="user-stat-label">Total Files</div>
+                </div>
+                <div class="user-stat-box stat-accepted">
+                    <div class="user-stat-icon">✓</div>
+                    <div class="user-stat-value">{{ s.accepted_fmt }}</div>
+                    <div class="user-stat-label">Accepted</div>
+                </div>
+                <div class="user-stat-box stat-rejected">
+                    <div class="user-stat-icon">✗</div>
+                    <div class="user-stat-value">{{ s.rejected_fmt }}</div>
+                    <div class="user-stat-label">Rejected</div>
+                </div>
+            </div>
+
+            <div class="user-metrics">
+                <div class="user-metric-item">
+                    <span class="metric-name">Acceptance Rate:</span>
+                    <span class="metric-value-green">{{ s.acceptance_rate_fmt }}%</span>
+                </div>
+                <div class="user-metric-item">
+                    <span class="metric-name">Rejection Rate:</span>
+                    <span class="metric-value-red">{{ s.rejection_rate_fmt }}%</span>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="sidebar-card">
+            <h3>📊 Search Statistics</h3>
+            <div class="sidebar-placeholder">
+                <p>🔍 Use search to see detailed statistics</p>
+                <ul>
+                    <li><strong>User ID only:</strong> User-specific stats</li>
+                    <li><strong>File name only:</strong> Search query stats</li>
+                    <li><strong>Reviewed By:</strong> Reviewer stats</li>
+                    <li><strong>Status:</strong> Filter accepted / rejected</li>
+                    <li>Total / Accepted / Rejected counts</li>
+                    <li>Acceptance & rejection rates</li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </aside>
+</div>
+
+<script>
+    function updateSizeSlider() {
+        const minVal = parseInt(document.getElementById('sizeMin').value);
+        const maxVal = parseInt(document.getElementById('sizeMax').value);
+        const pct = v => (v / 4200) * 100;
+        const fill = document.getElementById('sizeFill');
+        fill.style.left = pct(minVal) + '%';
+        fill.style.width = (pct(maxVal) - pct(minVal)) + '%';
+        document.getElementById('sizeMinLabel').textContent = minVal.toLocaleString() + ' MB';
+        document.getElementById('sizeMaxLabel').textContent = maxVal.toLocaleString() + ' MB';
+    }
+
+    const sizeMinEl = document.getElementById('sizeMin');
+    const sizeMaxEl = document.getElementById('sizeMax');
+    if (sizeMinEl && sizeMaxEl) {
+        sizeMinEl.addEventListener('input', () => {
+            if (parseInt(sizeMinEl.value) > parseInt(sizeMaxEl.value)) sizeMinEl.value = sizeMaxEl.value;
+            updateSizeSlider();
+        });
+        sizeMaxEl.addEventListener('input', () => {
+            if (parseInt(sizeMaxEl.value) < parseInt(sizeMinEl.value)) sizeMaxEl.value = sizeMinEl.value;
+            updateSizeSlider();
+        });
+        updateSizeSlider();
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,1024 @@
+{% extends "base.html" %}
+
+{% block title %}Instructions{% endblock %}
+
+{% block content %}
+<div class="instructions-container">
+    <h2>📖 Instructions &amp; Help</h2>
+
+    <div class="instructions-grid">
+
+        <!-- Search Filters Section -->
+        <section class="instr-section">
+            <h3>🔍 Search Filters</h3>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">🎯</div>
+                <div class="instr-card-body">
+                    <h4>User ID Search</h4>
+                    <ul>
+                        <li><strong>Positive ID</strong> (e.g. <code>123</code>): Show only files from that user</li>
+                        <li><strong>Negative ID</strong> (e.g. <code>-123</code>): Exclude that user, show everyone else</li>
+                        <li>Leave empty to search across all users</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">📂</div>
+                <div class="instr-card-body">
+                    <h4>File Name Search</h4>
+                    <ul>
+                        <li>Enter one or more keywords</li>
+                        <li><strong>ALL words</strong> must be present in the file name (AND logic)</li>
+                        <li>Words can appear in any order</li>
+                        <li>Case-insensitive partial match</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">👤</div>
+                <div class="instr-card-body">
+                    <h4>Forwarded From</h4>
+                    <ul>
+                        <li>Searches across all four forward fields at once</li>
+                        <li><em>Forward First Name, Forward Username, Forward Chat Title, Forward Chat Username</em></li>
+                        <li>Matches <strong>any one</strong> of them (OR logic)</li>
+                        <li>Case-insensitive partial match</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">📏</div>
+                <div class="instr-card-body">
+                    <h4>File Size Range</h4>
+                    <ul>
+                        <li>Use the dual slider to set a minimum and maximum size</li>
+                        <li>Range: <strong>0 – 4200 MB</strong></li>
+                        <li>Leaving it at full range (0–4200) disables this filter</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">✨</div>
+                <div class="instr-card-body">
+                    <h4>Combined Search</h4>
+                    <ul>
+                        <li>All filters can be combined freely</li>
+                        <li>Each active filter is ANDed together</li>
+                        <li>Use as many or as few as you need</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Examples Section -->
+        <section class="instr-section">
+            <h3>💡 Examples</h3>
+
+            <div class="instr-example">
+                <div class="instr-example-label">Include a specific user</div>
+                <div class="instr-example-row">
+                    <span class="instr-ex-field">User ID:</span>
+                    <code>1234567890</code>
+                </div>
+                <div class="instr-example-result">→ Shows only pending files belonging to user 1234567890</div>
+            </div>
+
+            <div class="instr-example">
+                <div class="instr-example-label">Exclude a specific user</div>
+                <div class="instr-example-row">
+                    <span class="instr-ex-field">User ID:</span>
+                    <code>-1234567890</code>
+                </div>
+                <div class="instr-example-result">→ Shows pending files from everyone <em>except</em> user 1234567890</div>
+            </div>
+
+            <div class="instr-example">
+                <div class="instr-example-label">File name keyword search</div>
+                <div class="instr-example-row">
+                    <span class="instr-ex-field">File Name:</span>
+                    <code>mr robot</code>
+                </div>
+                <div class="instr-example-result">→ Files whose name contains both "mr" AND "robot" (order doesn't matter)</div>
+            </div>
+
+            <div class="instr-example">
+                <div class="instr-example-label">User + file name combined</div>
+                <div class="instr-example-row">
+                    <span class="instr-ex-field">User ID:</span>
+                    <code>1234567890</code>
+                </div>
+                <div class="instr-example-row">
+                    <span class="instr-ex-field">File Name:</span>
+                    <code>mr robot</code>
+                </div>
+                <div class="instr-example-result">→ Files from user 1234567890 that also contain "mr" AND "robot"</div>
+            </div>
+
+            <div class="instr-example">
+                <div class="instr-example-label">Forward source search</div>
+                <div class="instr-example-row">
+                    <span class="instr-ex-field">Forwarded From:</span>
+                    <code>robot</code>
+                </div>
+                <div class="instr-example-result">→ Files where any forward field contains "robot"</div>
+            </div>
+
+            <div class="instr-example">
+                <div class="instr-example-label">Size range only</div>
+                <div class="instr-example-row">
+                    <span class="instr-ex-field">Size:</span>
+                    <code>500 – 1500 MB</code>
+                </div>
+                <div class="instr-example-result">→ Only files between 500 MB and 1500 MB</div>
+            </div>
+        </section>
+
+        <!-- Statistics Panel Section -->
+        <section class="instr-section">
+            <h3>📊 Search Statistics Panel</h3>
+            <p class="instr-intro">When you apply any search filter, a statistics panel appears on the right side of the Review page. It shows:</p>
+            <div class="instr-card">
+                <div class="instr-card-icon">📈</div>
+                <div class="instr-card-body">
+                    <ul>
+                        <li><strong>User ID only:</strong> User-specific stats for that single user</li>
+                        <li><strong>File name only:</strong> Stats across all files matching the search query</li>
+                        <li><strong>Both combined:</strong> Precise stats for that user's matching files</li>
+                        <li>Total matching files</li>
+                        <li>Pending reviews remaining</li>
+                        <li>Accepted / Rejected counts</li>
+                        <li>Review progress percentage</li>
+                        <li>Acceptance &amp; rejection rates</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Review Workflow Section -->
+        <section class="instr-section">
+            <h3>✅ Review Workflow</h3>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">1️⃣</div>
+                <div class="instr-card-body">
+                    <h4>Load files</h4>
+                    <p>Open the <a href="/review">Review</a> page. Without any filter it loads 10 random pending files. Use the Advanced Search to narrow down.</p>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">2️⃣</div>
+                <div class="instr-card-body">
+                    <h4>Preview before deciding</h4>
+                    <p>Each file card has <strong>DL</strong> (download) and <strong>Watch</strong> buttons. Use them to inspect the file before accepting or rejecting.</p>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">3️⃣</div>
+                <div class="instr-card-body">
+                    <h4>Rename if needed</h4>
+                    <p>Click the file name text box at the top of any card to edit it. The box turns amber when a name has been changed. The new name is saved to the database on submission.</p>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">4️⃣</div>
+                <div class="instr-card-body">
+                    <h4>Accept or Reject</h4>
+                    <p>Click <strong>Accept</strong> to make the file public, or <strong>Reject</strong> to keep it private. You can skip any file by not clicking either button.</p>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">5️⃣</div>
+                <div class="instr-card-body">
+                    <h4>Submit</h4>
+                    <p>Click <strong>Review Summary &amp; Submit</strong> to preview all your decisions (including any renames), then confirm to write them to the database.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Regex Rename Examples Section -->
+        <section class="instr-section" style="grid-column: 1 / -1;">
+            <h3>&#x270F;&#xFE0F; Regex Rename — 50 Examples</h3>
+            <p style="color:#555;margin-bottom:24px;">
+                Use the <strong>Regex Rename</strong> box on the Review page to batch-rename all visible files instantly.
+                Enter the <strong>Pattern</strong> (what to find) and <strong>Replace with</strong> (what to put instead).
+                Leave <em>Replace with</em> empty to simply delete the matched text.
+                Capture groups are written as <code>$1</code>, <code>$2</code> … in the replacement.
+            </p>
+
+            <div class="regex-list">
+
+                <div class="regex-item">
+                    <div class="regex-num">1</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove @username prefix</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>^@\S+\s</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">@Mj_Link Mr Robot S01.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Mr Robot S01.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">2</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Replace spaces with underscores</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\s+</code>
+                            <span class="regex-label">Replace with</span><code>_</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">My Movie File.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">My_Movie_File.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">3</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Replace underscores with spaces</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>_</code>
+                            <span class="regex-label">Replace with</span><code>&nbsp;</code><span style="color:#aaa;font-size:0.8em;">(a space)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">My_Movie_File.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">My Movie File.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">4</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove content in square brackets</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\[.*?\]</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie [720p][BluRay].mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie .mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">5</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove content in round brackets</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\(.*?\)</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Show (2023) Episode.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Show  Episode.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">6</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove quality tag (720p / 1080p / 4K)</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>[\.\s_-]?(720p|1080p|4K|2160p)</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Film.1080p.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Film.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">7</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove HDRip / BluRay / WEB-DL / HDTV tags</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>[\.\s_-]?(HDRip|BluRay|WEB-DL|WEBRip|HDTV)</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Show.WEB-DL.S01E01.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Show.S01E01.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">8</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Reformat S01E05 &#x2192; Season01_Ep05</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>S(\d+)E(\d+)</code>
+                            <span class="regex-label">Replace with</span><code>Season$1_Ep$2</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Show.S02E05.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Show.Season02_Ep05.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">9</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Add spaces around season/episode tag</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\.S(\d+E\d+)\.</code>
+                            <span class="regex-label">Replace with</span><code> S$1 </code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Show.S01E01.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Show S01E01 .mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">10</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove file extension</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\.\w{2,4}$</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">video_clip.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">video_clip</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">11</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Change extension .mp4 &#x2192; .mkv</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\.mp4$</code>
+                            <span class="regex-label">Replace with</span><code>.mkv</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">movie.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">movie.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">12</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove leading number and dot (e.g. "01. ")</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>^\d+\.\s*</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">01. My Show Episode.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">My Show Episode.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">13</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove trailing space before extension</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\s+(\.\w+)$</code>
+                            <span class="regex-label">Replace with</span><code>$1</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie Title .mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie Title.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">14</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Collapse multiple spaces into one</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code> {2,}</code>
+                            <span class="regex-label">Replace with</span><code>&nbsp;</code><span style="color:#aaa;font-size:0.8em;">(single space)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">My  Movie   Name.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">My Movie Name.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">15</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove "- Copy" suffix</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\s*-\s*Copy</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Document - Copy.pdf</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Document.pdf</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">16</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Strip date in YYYY-MM-DD format</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\d{4}-\d{2}-\d{2}</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Recording 2024-05-10.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Recording .mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">17</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Strip date in DD.MM.YYYY format</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\d{2}\.\d{2}\.\d{4}</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Clip.10.05.2024.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Clip..mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">18</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove everything after a dash</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\s*-.*$</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie Title - 1080p BluRay.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie Title</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">19</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Keep only text before the first dot</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\..*$</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">show.s01e01.web-dl.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">show</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">20</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Add prefix "REVIEWED_"</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>^</code>
+                            <span class="regex-label">Replace with</span><code>REVIEWED_</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">movie.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">REVIEWED_movie.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">21</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Add suffix before extension</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>(\.\w+)$</code>
+                            <span class="regex-label">Replace with</span><code>_done$1</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">clip.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">clip_done.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">22</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove special characters (keep letters, numbers, space, dot, dash)</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>[^a-zA-Z0-9 \.\-]</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie! #Best@2024.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie  Best2024.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">23</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove Telegram "Fwd: " prefix</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>^Fwd:\s*</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Fwd: Funny Video.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Funny Video.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">24</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove x264 / x265 codec tag</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>[\.\s_-]?x26[45]</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie.x264.BluRay.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie.BluRay.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">25</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove audio codec tags (AAC, AC3, DTS, Atmos)</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>[\.\s_-]?(AAC|AC3|DTS|DD5\.1|Atmos)</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Film.AAC.1080p.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Film.1080p.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">26</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove language tags like (Hindi) or [Dubbed]</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>[\[\(](Hindi|English|Tamil|Telugu|Dubbed)[\]\)]</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie (Hindi) 1080p.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie  1080p.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">27</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Replace dots with spaces (except before extension)</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\.(?=\S+\.)</code>
+                            <span class="regex-label">Replace with</span><code>&nbsp;</code><span style="color:#aaa;font-size:0.8em;">(space)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Show.S01E01.BluRay.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Show S01E01 BluRay.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">28</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove year in parentheses like (2023)</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\s*\(\d{4}\)</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">The Movie (2023).mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">The Movie.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">29</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove standalone 4-digit year</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\s*\b(19|20)\d{2}\b</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Show 2022 S01.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Show  S01.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">30</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Normalize multiple dashes to one</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>-{2,}</code>
+                            <span class="regex-label">Replace with</span><code>-</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie---Title.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie-Title.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">31</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove "Episode" word, keep the number</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>Episode\s*</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Show Episode 5.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Show 5.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">32</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Shorten "Season 2" &#x2192; "S2"</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>Season\s*(\d+)</code>
+                            <span class="regex-label">Replace with</span><code>S$1</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Show Season 2 Ep 3.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Show S2 Ep 3.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">33</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove "Part 1", "Part 2" etc.</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\s*Part\s*\d+</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie Part 1.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">34</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove channel name in curly braces</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\{.*?\}</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Video {ChannelName}.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Video .mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">35</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove HEVC / AVC / H.264 / H.265 tags</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>[\.\s_-]?(HEVC|AVC|H\.264|H\.265)</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie.HEVC.1080p.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie.1080p.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">36</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove "Complete Series" suffix</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\s*-?\s*Complete Series</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Breaking Bad - Complete Series.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Breaking Bad.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">37</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Keep only the first word</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\s.*$</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Avengers Endgame 2019.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Avengers</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">38</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove path prefix (everything before last slash)</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>^.*/</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Folder/Subfolder/file.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">file.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">39</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Pad single-digit episode number (E5 &#x2192; E05)</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>E(\d)(?!\d)</code>
+                            <span class="regex-label">Replace with</span><code>E0$1</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Show.S01E5.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Show.S01E05.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">40</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove "www.site.com" watermark</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>www\.\S+\.com\s*</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">www.piracy.com Movie 2024.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie 2024.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">41</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove leading/trailing dashes and spaces</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>^[\s\-]+|[\s\-]+$</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before"> - Movie Title - </span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie Title</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">42</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Replace hyphens with spaces</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>-</code>
+                            <span class="regex-label">Replace with</span><code>&nbsp;</code><span style="color:#aaa;font-size:0.8em;">(space)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">My-Movie-File.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">My Movie File.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">43</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove bare resolution numbers (no "p")</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\b(480|720|1080|2160)\b</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Film 1080 BluRay.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Film  BluRay.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">44</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove subtitle language code (.en. / .hi.)</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\.(en|hi|ta|te|ml)\.</code>
+                            <span class="regex-label">Replace with</span><code>.</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">movie.en.srt</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">movie.srt</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">45</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Swap "Lastname Firstname" &#x2192; "Firstname Lastname"</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>^(\w+)\s(\w+)</code>
+                            <span class="regex-label">Replace with</span><code>$2 $1</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Doe John Interview.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">John Doe Interview.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">46</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove repeated consecutive words</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\b(\w+)\s+\1\b</code>
+                            <span class="regex-label">Replace with</span><code>$1</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">The The Movie.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">The Movie.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">47</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove inline @tag at the end</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\s*@\S+</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">My Video @channel_name.mp4</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">My Video.mp4</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">48</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove HDR / SDR / DoVi tags</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>[\.\s_-]?(HDR10\+?|SDR|DoVi|DV)</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie.HDR10.2160p.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie.2160p.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">49</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Replace multiple dots with a single dot</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>\.{2,}</code>
+                            <span class="regex-label">Replace with</span><code>.</code>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Movie...Title..mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Movie.Title.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="regex-item">
+                    <div class="regex-num">50</div>
+                    <div class="regex-body">
+                        <div class="regex-title">Remove "NF" / "AMZN" / "DSNP" streaming source tags</div>
+                        <div class="regex-fields">
+                            <span class="regex-label">Pattern</span><code>[\.\s_-]?(NF|AMZN|DSNP|HMAX|ATVP|HULU)</code>
+                            <span class="regex-label">Replace with</span><span class="regex-empty">(empty)</span>
+                        </div>
+                        <div class="regex-example">
+                            <span class="regex-before">Show.AMZN.WEB-DL.1080p.mkv</span>
+                            <span class="regex-arrow">&#x2192;</span>
+                            <span class="regex-after">Show.WEB-DL.1080p.mkv</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /.regex-list -->
+        </section>
+
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}File Review System{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1 class="logo">File Review System</h1>
+            {% if logged_in %}
+            <div class="nav-links">
+                <a href="/review">Review</a>
+                <a href="/done">Done</a>
+                <a href="/stats">Stats</a>
+                <a href="/instructions">Instructions</a>
+                <span class="username">{{ username }}</span>
+                <a href="/logout" class="logout-btn">Logout</a>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container">
+        {% for f in flashes %}
+        <div class="alert alert-{{ f.category }}">
+            {{ f.message }}
+        </div>
+        {% endfor %}
+
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
