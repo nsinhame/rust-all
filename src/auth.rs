@@ -1,4 +1,5 @@
-use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::password_hash::phc::PasswordHash;
+use argon2::password_hash::{PasswordHasher, PasswordVerifier};
 use argon2::Argon2;
 use axum::extract::FromRef;
 use axum::extract::FromRequestParts;

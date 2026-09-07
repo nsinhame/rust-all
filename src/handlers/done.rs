@@ -61,7 +61,6 @@ struct DoneTemplate {
     size_filter_active: bool,
     page_heading: String,
     stats: Option<DoneStats>,
-    page: i64,
     total_pages: i64,
     pages: Vec<PageLink>,
 }
@@ -280,7 +279,6 @@ pub async fn done(
         size_filter_active: parsed.size_filter_active,
         page_heading,
         stats,
-        page,
         total_pages,
         pages,
     };
