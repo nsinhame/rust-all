@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}File Review System{% endblock %}</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="{{ crate::BASE_PATH }}/static/style.css">
 </head>
 <body>
     <nav class="navbar">
@@ -12,12 +12,12 @@
             <h1 class="logo">File Review System</h1>
             {% if logged_in %}
             <div class="nav-links">
-                <a href="/review">Review</a>
-                <a href="/done">Done</a>
-                <a href="/stats">Stats</a>
-                <a href="/instructions">Instructions</a>
+                <a href="{{ crate::BASE_PATH }}/review">Review</a>
+                <a href="{{ crate::BASE_PATH }}/done">Done</a>
+                <a href="{{ crate::BASE_PATH }}/stats">Stats</a>
+                <a href="{{ crate::BASE_PATH }}/instructions">Instructions</a>
                 <span class="username">{{ username }}</span>
-                <a href="/logout" class="logout-btn">Logout</a>
+                <a href="{{ crate::BASE_PATH }}/logout" class="logout-btn">Logout</a>
             </div>
             {% endif %}
         </div>

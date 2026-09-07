@@ -8,7 +8,7 @@
     <aside class="left-sidebar">
         <div class="sidebar-card">
             <h3>🔍 Advanced Search</h3>
-            <form method="GET" action="/review" class="search-form">
+            <form method="GET" action="{{ crate::BASE_PATH }}/review" class="search-form">
                 <div class="search-input-group" style="margin-bottom: 12px;">
                     <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">User ID:</label>
                     <input
@@ -106,7 +106,7 @@
                 {% if !search_id.is_empty() %}
                     <span class="search-badge search-badge-id">🆔 {{ search_id|truncate(8) }}</span>
                 {% endif %}
-                <a href="/review" class="btn btn-clear">Clear All</a>
+                <a href="{{ crate::BASE_PATH }}/review" class="btn btn-clear">Clear All</a>
             </div>
             {% endif %}
 
@@ -251,7 +251,7 @@
     {% else %}
     <div class="no-files">
         <p>🎉 No files pending review! All caught up.</p>
-        <a href="/stats" class="btn btn-primary">View Statistics</a>
+        <a href="{{ crate::BASE_PATH }}/stats" class="btn btn-primary">View Statistics</a>
     </div>
     {% endif %}
         </div>
@@ -636,7 +636,7 @@
             }
         });
 
-        fetch('/submit', {
+        fetch('{{ crate::BASE_PATH }}/submit', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

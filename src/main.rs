@@ -5,16 +5,28 @@ mod query_filters;
 mod state;
 mod util;
 
+use axum::extract::{Query, Request, State};
+use axum::http::StatusCode;
+use axum::middleware::{self, Next};
+use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::Router;
+use axum_extra::extract::cookie::{Cookie, PrivateCookieJar};
 use mongodb::bson::doc;
 use mongodb::{Client, IndexModel};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
 use auth::{derive_cookie_key, hash_password};
 use state::{build_state, AppState};
+
+/// URL prefix the whole app is served under, e.g. `https://host/link-review/review`.
+pub const BASE_PATH: &str = "/link-review";
+
+/// Name of the cookie that remembers a successful `?key=` check.
+const ACCESS_COOKIE: &str = "link_access";
 
 /// Ensures the two predefined reviewer accounts exist, matching the
 /// behaviour of the original Flask app's `create_default_users`.
@@ -42,20 +54,51 @@ async fn create_default_users(state: &AppState) {
     }
 }
 
+/// Gate for everything under [`BASE_PATH`]: requires a valid `link_access` cookie, or a
+/// `?key=` query parameter matching `ACCESS_KEY`, in which case the cookie is then granted.
+async fn require_access_key(
+    State(state): State<AppState>,
+    jar: PrivateCookieJar,
+    Query(params): Query<HashMap<String, String>>,
+    request: Request,
+    next: Next,
+) -> impl IntoResponse {
+    let has_valid_cookie = jar
+        .get(ACCESS_COOKIE)
+        .map(|c| c.value() == state.access_key)
+        .unwrap_or(false);
+    if has_valid_cookie {
+        return next.run(request).await.into_response();
+    }
+
+    if params.get("key") == Some(&state.access_key) {
+        let response = next.run(request).await;
+        let jar = PrivateCookieJar::new(state.cookie_key.clone()).add(
+            Cookie::build((ACCESS_COOKIE, state.access_key.clone()))
+                .path(BASE_PATH)
+                .http_only(true),
+        );
+        return (jar, response).into_response();
+    }
+
+    (StatusCode::NOT_FOUND, "Not Found").into_response()
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
     dotenvy::dotenv().ok();
 
     let mongodb_uri = std::env::var("MONGODB_URI").expect("MONGODB_URI must be set");
-    let secret_key = std::env::var("SECRET_KEY")
-        .expect("SECRET_KEY must be set (generate one with `openssl rand -hex 32`)");
+    let access_key = std::env::var("ACCESS_KEY")
+        .expect("ACCESS_KEY must be set (this is the `?key=` value required to reach the app)");
 
     let client = Client::with_uri_str(&mongodb_uri)
         .await
         .expect("failed to connect to MongoDB");
-    let cookie_key = derive_cookie_key(&secret_key);
-    let app_state = build_state(&client, cookie_key);
+    // Cookie encryption is derived from ACCESS_KEY so only one secret needs managing.
+    let cookie_key = derive_cookie_key(&access_key);
+    let app_state = build_state(&client, cookie_key, access_key);
 
     create_default_users(&app_state).await;
 
@@ -64,7 +107,7 @@ async fn main() {
         tracing::warn!("failed to create is_public index: {err}");
     }
 
-    let app = Router::new()
+    let protected = Router::new()
         .route("/", get(handlers::pages::index))
         .route(
             "/login",
@@ -77,6 +120,13 @@ async fn main() {
         .route("/done", get(handlers::done::done))
         .route("/stats", get(handlers::stats::stats))
         .nest_service("/static", ServeDir::new("static"))
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            require_access_key,
+        ));
+
+    let app = Router::new()
+        .nest(BASE_PATH, protected)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
 

@@ -103,7 +103,7 @@ fn build_done_url(
         .map(|(k, v)| format!("{}={}", k, url_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    format!("/done?{}", query)
+    format!("{}/done?{}", crate::BASE_PATH, query)
 }
 
 pub async fn done(

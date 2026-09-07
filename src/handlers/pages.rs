@@ -33,7 +33,7 @@ struct InstructionsTemplate {
 /// `GET /` - redirects to `/review` if logged in, otherwise to `/login`
 /// (the `AuthUser` extractor itself redirects to `/login` on failure).
 pub async fn index(_user: AuthUser) -> Redirect {
-    Redirect::to("/review")
+    Redirect::to(&format!("{}/review", crate::BASE_PATH))
 }
 
 pub async fn login_get(
@@ -41,7 +41,7 @@ pub async fn login_get(
     jar: PrivateCookieJar,
 ) -> impl IntoResponse {
     if session.is_some() {
-        return (jar, Redirect::to("/review")).into_response();
+        return (jar, Redirect::to(&format!("{}/review", crate::BASE_PATH))).into_response();
     }
     let (jar, flash) = take_flash(jar);
     let flashes = flash
@@ -82,7 +82,7 @@ pub async fn login_post(
             let jar = jar
                 .add(make_session_cookie(&session))
                 .add(make_flash_cookie("success", "Login successful!"));
-            return (jar, Redirect::to("/review")).into_response();
+            return (jar, Redirect::to(&format!("{}/review", crate::BASE_PATH))).into_response();
         }
     }
 
@@ -102,7 +102,7 @@ pub async fn logout(jar: PrivateCookieJar) -> impl IntoResponse {
     let jar = jar
         .remove(session_removal_cookie())
         .add(make_flash_cookie("success", "Logged out successfully"));
-    (jar, Redirect::to("/login"))
+    (jar, Redirect::to(&format!("{}/login", crate::BASE_PATH)))
 }
 
 pub async fn instructions(AuthUser(session): AuthUser, jar: PrivateCookieJar) -> impl IntoResponse {

@@ -29,9 +29,10 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
         let jar = PrivateCookieJar::<Key>::from_headers(&parts.headers, app_state.cookie_key.clone());
-        let cookie = jar.get("session").ok_or_else(|| Redirect::to("/login"))?;
+        let login_path = format!("{}/login", crate::BASE_PATH);
+        let cookie = jar.get("session").ok_or_else(|| Redirect::to(&login_path))?;
         let data = serde_json::from_str::<SessionData>(cookie.value())
-            .map_err(|_| Redirect::to("/login"))?;
+            .map_err(|_| Redirect::to(&login_path))?;
         Ok(AuthUser(data))
     }
 }

@@ -8,7 +8,7 @@
     <aside class="left-sidebar">
         <div class="sidebar-card">
             <h3>🔍 Advanced Search</h3>
-            <form method="GET" action="/done" class="search-form">
+            <form method="GET" action="{{ crate::BASE_PATH }}/done" class="search-form">
                 <div class="search-input-group" style="margin-bottom: 12px;">
                     <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">User ID:</label>
                     <input
@@ -126,7 +126,7 @@
                 {% if !search_id.is_empty() %}
                     <span class="search-badge search-badge-id">🆔 {{ search_id|truncate(8) }}</span>
                 {% endif %}
-                <a href="/done" class="btn btn-clear">Clear All</a>
+                <a href="{{ crate::BASE_PATH }}/done" class="btn btn-clear">Clear All</a>
             </div>
             {% endif %}
         </div>
@@ -249,7 +249,7 @@
             {% else %}
             <div class="no-files">
                 <p>📭 No reviewed files found matching your search.</p>
-                <a href="/done" class="btn btn-primary">Clear Search</a>
+                <a href="{{ crate::BASE_PATH }}/done" class="btn btn-primary">Clear Search</a>
             </div>
             {% endif %}
         </div>
