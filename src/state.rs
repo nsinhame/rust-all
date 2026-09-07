@@ -7,7 +7,8 @@ use mongodb::{Client, Collection};
 #[derive(Clone)]
 pub struct AppState {
     pub files: Collection<Document>,
-    pub users: Collection<Document>,
+    /// (username, password) pairs loaded from `LINK_REVIEW_USER{n}` / `LINK_REVIEW_USER{n}_PASS`.
+    pub users: Vec<(String, String)>,
     pub cookie_key: Key,
     /// Shared secret required (via `?key=` or the granting cookie) to reach the app at all.
     pub access_key: String,
@@ -19,12 +20,16 @@ impl FromRef<AppState> for Key {
     }
 }
 
-pub fn build_state(client: &Client, cookie_key: Key, access_key: String) -> AppState {
+pub fn build_state(
+    client: &Client,
+    cookie_key: Key,
+    access_key: String,
+    users: Vec<(String, String)>,
+) -> AppState {
     let files_db = client.database("F2LxBot");
-    let auth_db = client.database("link_allow_auth");
     AppState {
         files: files_db.collection::<Document>("file"),
-        users: auth_db.collection::<Document>("users"),
+        users,
         cookie_key,
         access_key,
     }

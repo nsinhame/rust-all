@@ -11,11 +11,11 @@ shared secret (see "Access gate" below) — e.g. `https://your-host/link-review?
 
 Functionally equivalent to the original app:
 
-- Session-based login for the two predefined reviewers (`nik` / `prdp`), auto-created on first boot.
+- Session-based login for reviewers configured via `LINK_REVIEW_USER{n}` / `LINK_REVIEW_USER{n}_PASS` env vars.
 - `/link-review/review` — 10 random unreviewed files with search (user id include/exclude, file name, forwarded-from, size range, Mongo `_id`) and live stats sidebar.
 - `/link-review/submit` — bulk accept/reject, optional rename, optional "special hash" tagging.
 - `/link-review/done` — paginated list of reviewed files with the same filters plus reviewer/status.
-- `/link-review/stats` — dashboard with global + per-reviewer (nik vs prdp) comparison.
+- `/link-review/stats` — dashboard with global + per-reviewer comparison (top 2 configured users).
 - `/link-review/instructions` — static help page (search tips + 50 regex rename examples).
 
 ## Project layout
@@ -70,6 +70,22 @@ username/password login:
 - Any request without a valid key or cookie gets a plain 404 (not 403), so the endpoint's
   existence isn't revealed to random scanners/bots hitting the bare domain.
 
+## Reviewer accounts
+
+There is no user database — usernames/passwords are configured entirely via env vars, read
+once at startup:
+
+```
+LINK_REVIEW_USER1=nik
+LINK_REVIEW_USER1_PASS=some-password
+LINK_REVIEW_USER2=prdp
+LINK_REVIEW_USER2_PASS=another-password
+```
+
+Numbering must start at `1` with no gaps; the app stops scanning at the first missing pair.
+At least one pair must be set or the app refuses to start. To change a password or add/remove
+a reviewer, edit the env vars and restart — no database migration needed.
+
 ## Deploying to Koyeb (free tier)
 
 1. Push this repo to GitHub (the old `link-allow-page/` folder is gitignored and won't be included).
@@ -78,11 +94,12 @@ username/password login:
    - `MONGODB_URI` — your MongoDB Atlas (or other) connection string.
    - `ACCESS_KEY` — a long random string (`openssl rand -hex 32`); this is the `?key=` value
      visitors must supply, and it also encrypts/signs session & flash cookies.
+   - `LINK_REVIEW_USER1` / `LINK_REVIEW_USER1_PASS` (and `_USER2`, `_USER3`, ... as needed) —
+     reviewer login credentials, see "Reviewer accounts" above.
    - Koyeb automatically injects `PORT`; the app already reads it.
 4. Pick the free instance size (1 instance, smallest plan) and deploy.
 5. Once live, open `https://<your-app>.koyeb.app/link-review?key=<ACCESS_KEY>` and log in with
-   `nik` / `harekrishna` or `prdp` / `harekrishna` (change these passwords in the database
-   afterwards, or update `create_default_users` in `main.rs` before first boot).
+   one of the configured `LINK_REVIEW_USER{n}` / `LINK_REVIEW_USER{n}_PASS` pairs.
 
 ### Notes on state
 
@@ -94,8 +111,7 @@ username/password login:
 ## Differences from the Flask version
 
 - No server-side session store; the whole session/flash mechanism is cookie-based (see `src/auth.rs`).
-- Passwords are hashed with Argon2id instead of Werkzeug's PBKDF2 (existing users are recreated with
-  Argon2 hashes on first boot if they don't already exist — this does not touch existing custom users
-  you may have added directly in MongoDB with a different hash format, so re-create those manually if needed).
+- No user database: reviewer accounts are plain username/password pairs from env vars (see
+  "Reviewer accounts" above), compared with a constant-time check instead of Argon2/bcrypt hashing.
 - Templates are compiled into the binary at build time (Askama), so only `static/` needs to ship in the
   final Docker image.

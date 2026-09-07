@@ -1,6 +1,3 @@
-use argon2::password_hash::phc::PasswordHash;
-use argon2::password_hash::{PasswordHasher, PasswordVerifier};
-use argon2::Argon2;
 use axum::extract::FromRef;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -13,7 +10,6 @@ use crate::state::AppState;
 /// Data stored (encrypted) inside the `session` cookie.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SessionData {
-    pub user_id: String,
     pub username: String,
 }
 
@@ -86,22 +82,17 @@ pub fn take_flash(jar: PrivateCookieJar) -> (PrivateCookieJar, Option<(String, S
     }
 }
 
-pub fn hash_password(password: &str) -> String {
-    // `hash_password` (the `getrandom` feature is enabled by default) generates
-    // a fresh random salt internally, so no explicit salt is needed here.
-    Argon2::default()
-        .hash_password(password.as_bytes())
-        .expect("argon2 hashing should not fail")
-        .to_string()
-}
-
-pub fn verify_password(password: &str, hash: &str) -> bool {
-    match PasswordHash::new(hash) {
-        Ok(parsed) => Argon2::default()
-            .verify_password(password.as_bytes(), &parsed)
-            .is_ok(),
-        Err(_) => false,
+/// Constant-time string comparison to avoid leaking password length/content via timing.
+pub fn constant_time_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
     }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
 }
 
 /// Derives a cookie signing/encryption key from an arbitrary-length secret string.

@@ -3,14 +3,13 @@ use axum::extract::State;
 use axum::response::{IntoResponse, Redirect};
 use axum::Form;
 use axum_extra::extract::cookie::PrivateCookieJar;
-use mongodb::bson::doc;
 use serde::Deserialize;
 
 use crate::auth::{
-    make_flash_cookie, make_session_cookie, session_removal_cookie, take_flash, verify_password,
+    constant_time_eq, make_flash_cookie, make_session_cookie, session_removal_cookie, take_flash,
     AuthUser, OptionalAuthUser, SessionData,
 };
-use crate::models::{get_object_id, get_str, Flash};
+use crate::models::Flash;
 use crate::state::AppState;
 use crate::util::render;
 
@@ -66,24 +65,21 @@ pub async fn login_post(
     jar: PrivateCookieJar,
     Form(form): Form<LoginForm>,
 ) -> impl IntoResponse {
-    let user_doc = state
+    let matched = state
         .users
-        .find_one(doc! { "username": &form.username })
-        .await
-        .ok()
-        .flatten();
+        .iter()
+        .find(|(username, password)| {
+            constant_time_eq(username, &form.username) && constant_time_eq(password, &form.password)
+        });
 
-    if let Some(doc) = user_doc {
-        let hash = get_str(&doc, "password").unwrap_or_default();
-        if verify_password(&form.password, &hash) {
-            let username = get_str(&doc, "username").unwrap_or(form.username);
-            let user_id = get_object_id(&doc).map(|o| o.to_hex()).unwrap_or_default();
-            let session = SessionData { user_id, username };
-            let jar = jar
-                .add(make_session_cookie(&session))
-                .add(make_flash_cookie("success", "Login successful!"));
-            return (jar, Redirect::to(&format!("{}/review", crate::BASE_PATH))).into_response();
-        }
+    if let Some((username, _)) = matched {
+        let session = SessionData {
+            username: username.clone(),
+        };
+        let jar = jar
+            .add(make_session_cookie(&session))
+            .add(make_flash_cookie("success", "Login successful!"));
+        return (jar, Redirect::to(&format!("{}/review", crate::BASE_PATH))).into_response();
     }
 
     let flashes = vec![Flash {

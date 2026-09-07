@@ -19,7 +19,7 @@ use std::net::SocketAddr;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
-use auth::{derive_cookie_key, hash_password};
+use auth::derive_cookie_key;
 use state::{build_state, AppState};
 
 /// URL prefix the whole app is served under, e.g. `https://host/link-review/review`.
@@ -28,30 +28,23 @@ pub const BASE_PATH: &str = "/link-review";
 /// Name of the cookie that remembers a successful `?key=` check.
 const ACCESS_COOKIE: &str = "link_access";
 
-/// Ensures the two predefined reviewer accounts exist, matching the
-/// behaviour of the original Flask app's `create_default_users`.
-async fn create_default_users(state: &AppState) {
-    let default_users = [("nik", "harekrishna"), ("prdp", "harekrishna")];
-    for (username, password) in default_users {
-        let existing = state
-            .users
-            .find_one(doc! { "username": username })
-            .await
-            .ok()
-            .flatten();
-        if existing.is_none() {
-            let hashed = hash_password(password);
-            let user_doc = doc! {
-                "username": username,
-                "password": hashed,
-                "created_at": mongodb::bson::DateTime::now(),
-            };
-            match state.users.insert_one(user_doc).await {
-                Ok(_) => tracing::info!("created default user: {username}"),
-                Err(err) => tracing::error!("failed to create default user {username}: {err}"),
+/// Loads reviewer credentials from `LINK_REVIEW_USER{n}` / `LINK_REVIEW_USER{n}_PASS` pairs,
+/// starting at n=1 and stopping at the first missing/incomplete pair.
+fn load_users_from_env() -> Vec<(String, String)> {
+    let mut users = Vec::new();
+    let mut n = 1;
+    loop {
+        let username = std::env::var(format!("LINK_REVIEW_USER{n}"));
+        let password = std::env::var(format!("LINK_REVIEW_USER{n}_PASS"));
+        match (username, password) {
+            (Ok(username), Ok(password)) if !username.is_empty() => {
+                users.push((username, password));
+                n += 1;
             }
+            _ => break,
         }
     }
+    users
 }
 
 /// Gate for everything under [`BASE_PATH`]: requires a valid `link_access` cookie, or a
@@ -92,15 +85,19 @@ async fn main() {
     let mongodb_uri = std::env::var("MONGODB_URI").expect("MONGODB_URI must be set");
     let access_key = std::env::var("ACCESS_KEY")
         .expect("ACCESS_KEY must be set (this is the `?key=` value required to reach the app)");
+    let users = load_users_from_env();
+    if users.is_empty() {
+        panic!(
+            "no reviewer accounts configured; set LINK_REVIEW_USER1 / LINK_REVIEW_USER1_PASS (and _USER2, _USER3, ... as needed)"
+        );
+    }
 
     let client = Client::with_uri_str(&mongodb_uri)
         .await
         .expect("failed to connect to MongoDB");
     // Cookie encryption is derived from ACCESS_KEY so only one secret needs managing.
     let cookie_key = derive_cookie_key(&access_key);
-    let app_state = build_state(&client, cookie_key, access_key);
-
-    create_default_users(&app_state).await;
+    let app_state = build_state(&client, cookie_key, access_key, users);
 
     let index = IndexModel::builder().keys(doc! { "is_public": 1 }).build();
     if let Err(err) = app_state.files.create_index(index).await {
