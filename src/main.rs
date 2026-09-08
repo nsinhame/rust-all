@@ -127,6 +127,7 @@ async fn main() {
         ));
 
     let app = Router::new()
+        .route("/health", get(handlers::health::health))
         .nest(BASE_PATH, protected)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
