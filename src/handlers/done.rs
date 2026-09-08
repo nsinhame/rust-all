@@ -8,11 +8,10 @@ use serde::Deserialize;
 
 use crate::auth::{take_flash, AuthUser};
 use crate::models::{DoneStats, FileCard, Flash};
-use crate::query_filters::{parse_filters, RawFilterInput};
+use crate::query_filters::{parse_filters, parse_page_size, RawFilterInput};
 use crate::state::AppState;
 use crate::util::{commas, fmt_pct1, render, url_encode};
 
-const PAGE_SIZE: i64 = 10;
 const MAX_PAGES: i64 = 5;
 
 #[derive(Deserialize, Default)]
@@ -39,6 +38,8 @@ pub struct DoneQuery {
     pub date_to: String,
     #[serde(default)]
     pub page: String,
+    #[serde(default)]
+    pub page_size: String,
 }
 
 pub struct PageLink {
@@ -70,6 +71,7 @@ struct DoneTemplate {
     stats: Option<DoneStats>,
     total_pages: i64,
     pages: Vec<PageLink>,
+    page_size: i64,
 }
 
 fn build_done_url(
@@ -84,6 +86,7 @@ fn build_done_url(
     search_id: &str,
     search_date_from: &str,
     search_date_to: &str,
+    page_size: i64,
 ) -> String {
     let mut params: Vec<(String, String)> = vec![("page".into(), page.to_string())];
     if !search_user_id.is_empty() {
@@ -112,6 +115,7 @@ fn build_done_url(
     if !search_date_to.is_empty() {
         params.push(("date_to".into(), search_date_to.to_string()));
     }
+    params.push(("page_size".into(), page_size.to_string()));
     let query = params
         .iter()
         .map(|(k, v)| format!("{}={}", k, url_encode(v)))
@@ -179,12 +183,13 @@ pub async fn done(
 
     let mut page: i64 = q.page.trim().parse().unwrap_or(1);
     page = page.clamp(1, MAX_PAGES);
+    let page_size = parse_page_size(&q.page_size);
 
     let pipeline = vec![
         doc! { "$match": { "$and": conditions.clone() } },
         doc! { "$sort": { "reviewed_at": -1 } },
-        doc! { "$skip": (page - 1) * PAGE_SIZE },
-        doc! { "$limit": PAGE_SIZE },
+        doc! { "$skip": (page - 1) * page_size },
+        doc! { "$limit": page_size },
     ];
 
     let docs: Vec<Document> = match state.files.aggregate(pipeline).await {
@@ -197,7 +202,7 @@ pub async fn done(
 
     let base_match = doc! { "$and": conditions.clone() };
     let total_docs = state.files.count_documents(base_match).await.unwrap_or(0) as i64;
-    let total_pages = MAX_PAGES.min(((total_docs + PAGE_SIZE - 1) / PAGE_SIZE).max(1));
+    let total_pages = MAX_PAGES.min(((total_docs + page_size - 1) / page_size).max(1));
 
     let has_extra_filter = !search_reviewed_by.is_empty()
         || !search_status.is_empty()
@@ -269,7 +274,7 @@ pub async fn done(
         }
         heading
     } else {
-        "\u{2705} Reviewed Files (10 random)".to_string()
+        format!("\u{2705} Reviewed Files (most recent {page_size})")
     };
 
     let pages: Vec<PageLink> = (1..=total_pages)
@@ -287,6 +292,7 @@ pub async fn done(
                 &parsed.search_id,
                 &parsed.search_date_from,
                 &parsed.search_date_to,
+                page_size,
             ),
             active: p == page,
         })
@@ -313,6 +319,7 @@ pub async fn done(
         stats,
         total_pages,
         pages,
+        page_size,
     };
 
     (jar, render(tmpl))

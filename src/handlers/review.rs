@@ -11,7 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::auth::{take_flash, AuthUser};
 use crate::models::{Flash, FileCard, ReviewStats};
-use crate::query_filters::{parse_filters, RawFilterInput};
+use crate::query_filters::{parse_filters, parse_page_size, RawFilterInput};
 use crate::state::AppState;
 use crate::util::{commas, fmt_pct1, render};
 
@@ -33,6 +33,8 @@ pub struct ReviewQuery {
     pub date_from: String,
     #[serde(default)]
     pub date_to: String,
+    #[serde(default)]
+    pub page_size: String,
 }
 
 #[derive(Template)]
@@ -55,6 +57,7 @@ struct ReviewTemplate {
     has_any_filter: bool,
     page_heading: String,
     stats: Option<ReviewStats>,
+    page_size: i64,
 }
 
 /// Combines a set of pre-parsed search conditions with one extra condition,
@@ -106,6 +109,7 @@ pub async fn review(
         });
     }
 
+    let page_size = parse_page_size(&q.page_size);
     let has_any_filter = !parsed.conditions.is_empty();
 
     let (pipeline, stats) = if has_any_filter {
@@ -113,7 +117,7 @@ pub async fn review(
         match_conditions.push(doc! { "is_public": { "$exists": false } });
         let pipeline = vec![
             doc! { "$match": { "$and": match_conditions } },
-            doc! { "$sample": { "size": 10 } },
+            doc! { "$sample": { "size": page_size } },
         ];
 
         let base_match = doc! { "$and": parsed.conditions.clone() };
@@ -162,7 +166,7 @@ pub async fn review(
         };
 
         let sessions_left_fmt = if pending > 0 {
-            format!("{}+", (pending as f64 / 10.0).round() as i64)
+            format!("{}+", (pending as f64 / page_size as f64).round() as i64)
         } else {
             "0".to_string()
         };
@@ -194,7 +198,7 @@ pub async fn review(
     } else {
         let pipeline = vec![
             doc! { "$match": { "is_public": { "$exists": false } } },
-            doc! { "$sample": { "size": 10 } },
+            doc! { "$sample": { "size": page_size } },
         ];
         (pipeline, None)
     };
@@ -250,7 +254,7 @@ pub async fn review(
     }
 
     let page_heading = if !has_any_filter {
-        "Review Files (10 random entries)".to_string()
+        format!("Review Files ({page_size} random entries)")
     } else if !parsed.search_user_id.is_empty() && !parsed.search_file_name.is_empty() {
         if parsed.is_exclusion {
             format!(
@@ -296,6 +300,7 @@ pub async fn review(
         has_any_filter,
         page_heading,
         stats,
+        page_size,
     };
 
 

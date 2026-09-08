@@ -99,6 +99,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-search" style="width: 100%;">🔍 Search</button>
+                <input type="hidden" name="page_size" value="{{ page_size }}">
             </form>
 
             {% if let Some(s) = stats %}
@@ -151,6 +152,18 @@
     <main class="review-main">
         <div class="review-container">
             <h2>{{ page_heading }}</h2>
+
+            <div class="page-size-toolbar">
+                <label for="pageSizeSelect">Show:</label>
+                <select id="pageSizeSelect" class="search-input" onchange="changePageSize(this.value)">
+                    <option value="5" {% if page_size == 5 %}selected{% endif %}>5</option>
+                    <option value="10" {% if page_size == 10 %}selected{% endif %}>10</option>
+                    <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                </select>
+                <span>per page</span>
+            </div>
 
             {% if !files.is_empty() %}
             <div class="review-info">
@@ -421,6 +434,14 @@
         dateFromEl.value = fmt(from);
         dateToEl.value = fmt(to);
         dateFromEl.closest('form').submit();
+    }
+
+    // Preserves current search/filter query params, resets to page 1 since page count changes with size.
+    function changePageSize(value) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('page_size', value);
+        params.set('page', '1');
+        window.location.search = params.toString();
     }
 </script>
 {% endblock %}

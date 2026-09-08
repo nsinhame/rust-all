@@ -691,6 +691,20 @@ body {
     color: #333;
 }
 
+.page-size-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    font-size: 0.9em;
+    color: #555;
+}
+
+.page-size-toolbar select {
+    width: auto;
+    padding: 6px 10px;
+}
+
 .review-info {
     background: #f0f4ff;
     padding: 15px;
@@ -1440,6 +1454,16 @@ body {
 .file-actions {
     display: flex;
     gap: 15px;
+}
+
+.bulk-actions {
+    display: flex;
+    gap: 15px;
+    margin: 24px 0;
+    padding: 16px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px dashed #d1d5db;
 }
 
 .submit-section {
@@ -2302,6 +2326,10 @@ body {
     }
 
     .file-actions {
+        flex-direction: column;
+    }
+
+    .bulk-actions {
         flex-direction: column;
     }
 

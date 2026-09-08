@@ -79,6 +79,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-search" style="width: 100%;">🔍 Search</button>
+                <input type="hidden" name="page_size" value="{{ page_size }}">
             </form>
 
             {% if has_any_filter %}
@@ -148,6 +149,18 @@
     <main class="review-main">
         <div class="review-container">
             <h2>{{ page_heading }}</h2>
+
+            <div class="page-size-toolbar">
+                <label for="pageSizeSelect">Show:</label>
+                <select id="pageSizeSelect" class="search-input" onchange="changePageSize(this.value)">
+                    <option value="5" {% if page_size == 5 %}selected{% endif %}>5</option>
+                    <option value="10" {% if page_size == 10 %}selected{% endif %}>10</option>
+                    <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                </select>
+                <span>files</span>
+            </div>
 
             {% if !files.is_empty() %}
             <div class="review-info">
@@ -254,6 +267,18 @@
             </div>
         </div>
         {% endfor %}
+    </div>
+
+    <div class="bulk-actions">
+        <button type="button" class="btn btn-accept" onclick="bulkSetDecision('accept')">
+            ✓ Accept All
+        </button>
+        <button type="button" class="btn btn-reject" onclick="bulkSetDecision('reject')">
+            ✗ Reject All
+        </button>
+        <button type="button" class="btn btn-delete" onclick="bulkSetDecision('delete')">
+            🗑 Delete All
+        </button>
     </div>
 
     <div class="submit-section">
@@ -471,6 +496,26 @@
         } else {
             btn.textContent = 'Review Summary & Submit';
         }
+    }
+
+    function bulkSetDecision(decision) {
+        document.querySelectorAll('.file-card').forEach(card => {
+            const fileId = card.dataset.fileId;
+            const buttons = card.querySelectorAll('.file-actions .btn');
+            const target = card.querySelector(`.file-actions .btn-${decision}`);
+            if (!target) return;
+            buttons.forEach(btn => btn.classList.remove('selected'));
+            target.classList.add('selected');
+            decisions[fileId] = decision;
+        });
+        updateSubmitButton();
+    }
+
+    // Preserves all current search/filter query params while swapping page_size.
+    function changePageSize(value) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('page_size', value);
+        window.location.search = params.toString();
     }
 
     function showSummary() {
