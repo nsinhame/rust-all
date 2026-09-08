@@ -248,6 +248,9 @@
                 <button class="btn btn-reject" onclick="selectDecision('{{ file.id }}', 'reject', this)">
                     ✗ Reject
                 </button>
+                <button class="btn btn-delete" onclick="selectDecision('{{ file.id }}', 'delete', this)">
+                    🗑 Delete
+                </button>
             </div>
         </div>
         {% endfor %}
@@ -478,8 +481,10 @@
 
         let acceptCount = 0;
         let rejectCount = 0;
+        let deleteCount = 0;
         let acceptList = [];
         let rejectList = [];
+        let deleteList = [];
 
         document.querySelectorAll('.file-card').forEach(card => {
             const fileId = card.dataset.fileId;
@@ -494,6 +499,9 @@
             } else if (decisions[fileId] === 'reject') {
                 rejectCount++;
                 rejectList.push({ name: fileName, original: originalName, renamed: wasRenamed });
+            } else if (decisions[fileId] === 'delete') {
+                deleteCount++;
+                deleteList.push({ name: fileName, original: originalName, renamed: wasRenamed });
             }
         });
 
@@ -506,6 +514,10 @@
                 <div class="stat-box reject-stat">
                     <div class="stat-number">${rejectCount}</div>
                     <div class="stat-label">Files to Reject</div>
+                </div>
+                <div class="stat-box delete-stat">
+                    <div class="stat-number">${deleteCount}</div>
+                    <div class="stat-label">Files to Delete</div>
                 </div>
             </div>
         `;
@@ -532,6 +544,14 @@
                 }
             });
             summaryHTML += '</ul></div>';
+        }
+
+        if (deleteList.length > 0) {
+            summaryHTML += '<div class="summary-section"><h3>🗑 Deleting permanently:</h3><ul>';
+            deleteList.forEach(item => {
+                summaryHTML += `<li>${item.name}</li>`;
+            });
+            summaryHTML += '</ul><p class="delete-warning">⚠ These entries will be permanently removed from the database and cannot be undone.</p></div>';
         }
 
         const specialHashList = [];
@@ -660,6 +680,11 @@
     function submitDecisions() {
         if (Object.keys(decisions).length === 0) {
             alert('No decisions to submit.');
+            return;
+        }
+
+        const deleteCount = Object.values(decisions).filter(d => d === 'delete').length;
+        if (deleteCount > 0 && !confirm(`This will permanently delete ${deleteCount} file entr${deleteCount > 1 ? 'ies' : 'y'} from the database. This cannot be undone. Continue?`)) {
             return;
         }
 

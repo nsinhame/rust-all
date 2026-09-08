@@ -333,12 +333,23 @@ pub async fn submit(
 
     let mut accepted_count = 0i64;
     let mut rejected_count = 0i64;
+    let mut deleted_count = 0i64;
 
     for (file_id, decision) in payload.decisions.iter() {
         let oid = match ObjectId::parse_str(file_id) {
             Ok(o) => o,
             Err(_) => continue,
         };
+
+        if decision == "delete" {
+            let result = state.files.delete_one(doc! { "_id": oid }).await;
+            match result {
+                Ok(_) => deleted_count += 1,
+                Err(err) => tracing::error!("error deleting file {file_id}: {err}"),
+            }
+            continue;
+        }
+
         let is_public = decision == "accept";
 
         let mut set_doc = doc! {
@@ -379,6 +390,10 @@ pub async fn submit(
         "success": true,
         "accepted": accepted_count,
         "rejected": rejected_count,
-        "message": format!("Updated {} files successfully!", accepted_count + rejected_count),
+        "deleted": deleted_count,
+        "message": format!(
+            "Processed {} files successfully!",
+            accepted_count + rejected_count + deleted_count
+        ),
     }))
 }
