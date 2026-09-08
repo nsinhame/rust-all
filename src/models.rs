@@ -102,7 +102,12 @@ impl FileCard {
             .unwrap_or_default();
 
         let file_name = get_str(doc, "file_name").unwrap_or_else(|| "Unknown".to_string());
-        let fqdn = fqdn.trim().trim_end_matches('/');
+        // Accept FQDN with or without a scheme so a stray "https://" in the env var doesn't double up.
+        let fqdn = fqdn
+            .trim()
+            .trim_end_matches('/')
+            .trim_start_matches("https://")
+            .trim_start_matches("http://");
         let dl_url = format!("https://{fqdn}/dl/{id}/{file_name}");
         let watch_url = format!("https://{fqdn}/watch/{id}/{file_name}");
 
