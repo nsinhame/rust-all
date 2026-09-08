@@ -56,6 +56,8 @@ struct StatsTemplate {
     rejected_diff_class: String,
     rate_diff_fmt: String,
     rate_diff_class: String,
+
+    show_plgb_nav: bool,
 }
 
 fn diff_class(a: i64, b: i64) -> String {
@@ -248,6 +250,8 @@ pub async fn stats(
         rejected_diff_class: diff_class(nik_rejected, prdp_rejected),
         rate_diff_fmt: format!("{:.1}", nik_accept_rate - prdp_accept_rate),
         rate_diff_class: diff_class_f64(nik_accept_rate, prdp_accept_rate),
+
+        show_plgb_nav: true,
     };
 
     (jar, render(tmpl))

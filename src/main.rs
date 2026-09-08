@@ -115,11 +115,11 @@ async fn main() {
         .route("/logout", get(handlers::pages::logout))
         .route("/home", get(handlers::pages::home))
         .route("/tgfs", get(handlers::pages::tgfs))
-        .route("/instructions", get(handlers::pages::instructions))
-        .route("/review", get(handlers::review::review))
+        .route("/instructions-plgb", get(handlers::pages::instructions))
+        .route("/review-plgb", get(handlers::review::review))
         .route("/submit", post(handlers::review::submit))
-        .route("/done", get(handlers::done::done))
-        .route("/stats", get(handlers::stats::stats))
+        .route("/done-plgb", get(handlers::done::done))
+        .route("/stats-plgb", get(handlers::stats::stats))
         .nest_service("/static", ServeDir::new("static"))
         .layer(middleware::from_fn_with_state(
             app_state.clone(),

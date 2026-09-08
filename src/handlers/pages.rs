@@ -19,6 +19,7 @@ struct LoginTemplate {
     logged_in: bool,
     username: String,
     flashes: Vec<Flash>,
+    show_plgb_nav: bool,
 }
 
 #[derive(Template)]
@@ -27,6 +28,7 @@ struct InstructionsTemplate {
     logged_in: bool,
     username: String,
     flashes: Vec<Flash>,
+    show_plgb_nav: bool,
 }
 
 #[derive(Template)]
@@ -35,6 +37,7 @@ struct HomeTemplate {
     logged_in: bool,
     username: String,
     flashes: Vec<Flash>,
+    show_plgb_nav: bool,
 }
 
 #[derive(Template)]
@@ -43,6 +46,7 @@ struct TgfsTemplate {
     logged_in: bool,
     username: String,
     flashes: Vec<Flash>,
+    show_plgb_nav: bool,
 }
 
 /// `GET /` - redirects to `/home` if logged in, otherwise to `/login`
@@ -60,6 +64,7 @@ pub async fn home(AuthUser(session): AuthUser, jar: PrivateCookieJar) -> impl In
         logged_in: true,
         username: session.username,
         flashes,
+        show_plgb_nav: false,
     };
     (jar, render(tmpl))
 }
@@ -73,6 +78,7 @@ pub async fn tgfs(AuthUser(session): AuthUser, jar: PrivateCookieJar) -> impl In
         logged_in: true,
         username: session.username,
         flashes,
+        show_plgb_nav: false,
     };
     (jar, render(tmpl))
 }
@@ -92,6 +98,7 @@ pub async fn login_get(
         logged_in: false,
         username: String::new(),
         flashes,
+        show_plgb_nav: false,
     };
     (jar, render(tmpl)).into_response()
 }
@@ -132,6 +139,7 @@ pub async fn login_post(
         logged_in: false,
         username: String::new(),
         flashes,
+        show_plgb_nav: false,
     };
     render(tmpl).into_response()
 }
@@ -152,6 +160,7 @@ pub async fn instructions(AuthUser(session): AuthUser, jar: PrivateCookieJar) ->
         logged_in: true,
         username: session.username,
         flashes,
+        show_plgb_nav: true,
     };
     (jar, render(tmpl))
 }

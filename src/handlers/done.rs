@@ -72,6 +72,7 @@ struct DoneTemplate {
     total_pages: i64,
     pages: Vec<PageLink>,
     page_size: i64,
+    show_plgb_nav: bool,
 }
 
 fn build_done_url(
@@ -121,7 +122,7 @@ fn build_done_url(
         .map(|(k, v)| format!("{}={}", k, url_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    format!("{}/done?{}", crate::BASE_PATH, query)
+    format!("{}/done-plgb?{}", crate::BASE_PATH, query)
 }
 
 pub async fn done(
@@ -320,6 +321,7 @@ pub async fn done(
         total_pages,
         pages,
         page_size,
+        show_plgb_nav: true,
     };
 
     (jar, render(tmpl))
