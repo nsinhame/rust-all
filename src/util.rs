@@ -86,3 +86,36 @@ pub fn format_ist(ts: f64) -> String {
     let dt_ist = dt_utc.with_timezone(&ist_offset);
     dt_ist.format("%Y-%m-%d %H:%M IST").to_string()
 }
+
+const IST_OFFSET_SECS: i32 = 5 * 3600 + 1800;
+
+/// Parses a `YYYY-MM-DD` (HTML `<input type=date>`) string as an IST calendar day and
+/// returns the unix-epoch-seconds instant of its start (`00:00:00`) in that timezone.
+/// Returns `None` if `date_str` is empty or not a valid date.
+pub fn ist_date_start_epoch(date_str: &str) -> Option<f64> {
+    use chrono::{FixedOffset, NaiveDate, TimeZone};
+
+    let date_str = date_str.trim();
+    if date_str.is_empty() {
+        return None;
+    }
+    let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok()?;
+    let naive_dt = date.and_hms_opt(0, 0, 0)?;
+    let ist_offset = FixedOffset::east_opt(IST_OFFSET_SECS).expect("valid fixed offset");
+    Some(ist_offset.from_local_datetime(&naive_dt).single()?.timestamp() as f64)
+}
+
+/// Same as [`ist_date_start_epoch`] but returns the instant of the day's last second
+/// (`23:59:59`) in IST, for use as the inclusive upper bound of a date-range filter.
+pub fn ist_date_end_epoch(date_str: &str) -> Option<f64> {
+    use chrono::{FixedOffset, NaiveDate, TimeZone};
+
+    let date_str = date_str.trim();
+    if date_str.is_empty() {
+        return None;
+    }
+    let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok()?;
+    let naive_dt = date.and_hms_opt(23, 59, 59)?;
+    let ist_offset = FixedOffset::east_opt(IST_OFFSET_SECS).expect("valid fixed offset");
+    Some(ist_offset.from_local_datetime(&naive_dt).single()?.timestamp() as f64)
+}

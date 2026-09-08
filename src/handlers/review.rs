@@ -29,6 +29,10 @@ pub struct ReviewQuery {
     pub size_min: String,
     #[serde(default)]
     pub size_max: String,
+    #[serde(default)]
+    pub date_from: String,
+    #[serde(default)]
+    pub date_to: String,
 }
 
 #[derive(Template)]
@@ -45,6 +49,9 @@ struct ReviewTemplate {
     search_size_min: i64,
     search_size_max: i64,
     size_filter_active: bool,
+    search_date_from: String,
+    search_date_to: String,
+    date_filter_active: bool,
     has_any_filter: bool,
     page_heading: String,
     stats: Option<ReviewStats>,
@@ -76,6 +83,8 @@ pub async fn review(
         size_min: &q.size_min,
         size_max: &q.size_max,
         id: &q.id,
+        date_from: &q.date_from,
+        date_to: &q.date_to,
     });
 
     if parsed.invalid_user_id {
@@ -88,6 +97,12 @@ pub async fn review(
         flashes.push(Flash {
             category: "error".into(),
             message: "Invalid File ID format. Please enter a valid 24-character hex ID.".into(),
+        });
+    }
+    if parsed.invalid_date_range {
+        flashes.push(Flash {
+            category: "error".into(),
+            message: "Invalid date range. Please use valid dates.".into(),
         });
     }
 
@@ -158,6 +173,9 @@ pub async fn review(
             size_filter_active: parsed.size_filter_active,
             search_size_min: parsed.search_size_min,
             search_size_max: parsed.search_size_max,
+            date_filter_active: parsed.date_filter_active,
+            search_date_from: parsed.search_date_from.clone(),
+            search_date_to: parsed.search_date_to.clone(),
             is_exclusion: parsed.is_exclusion,
             total_fmt: commas(total),
             reviewed_fmt: commas(reviewed),
@@ -272,10 +290,14 @@ pub async fn review(
         search_size_min: parsed.search_size_min,
         search_size_max: parsed.search_size_max,
         size_filter_active: parsed.size_filter_active,
+        search_date_from: parsed.search_date_from,
+        search_date_to: parsed.search_date_to,
+        date_filter_active: parsed.date_filter_active,
         has_any_filter,
         page_heading,
         stats,
     };
+
 
     (jar, render(tmpl))
 }

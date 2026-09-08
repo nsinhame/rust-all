@@ -1041,7 +1041,72 @@ body {
     margin-top: 8px;
     display: inline-block;
 }
+
+/* ── Date range filter ──────────────────────────────────── */
+.date-range-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.date-range-inputs .search-input {
+    padding: 10px;
+    font-size: 13px;
+}
+
+.date-range-sep {
+    font-size: 0.8em;
+    color: #999;
+    flex-shrink: 0;
+}
+
+.date-quick-buttons {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.btn-date-preset {
+    flex: 1;
+    background: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+    border-radius: 6px;
+    padding: 6px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-date-preset:hover {
+    background: #e0e7ff;
+}
+
+.search-badge-date {
+    background: #e0f2fe;
+    color: #075985;
+    border: 1px solid #7dd3fc;
+    font-size: 0.8em;
+    padding: 3px 8px;
+    border-radius: 12px;
+    display: inline-block;
+    margin-right: 4px;
+    margin-bottom: 4px;
+}
+
+.date-active-tag {
+    font-size: 0.8em;
+    color: #075985;
+    background: #e0f2fe;
+    border: 1px solid #7dd3fc;
+    border-radius: 6px;
+    padding: 4px 10px;
+    margin-top: 8px;
+    display: inline-block;
+}
 /* ────────────────────────────────────────────────────────── */
+
 
 /* ── Instructions page ───────────────────────────────────── */
 .instructions-container {

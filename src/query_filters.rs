@@ -1,5 +1,7 @@
 use mongodb::bson::{doc, oid::ObjectId, Document};
 
+use crate::util::{ist_date_end_epoch, ist_date_start_epoch};
+
 /// Result of parsing the shared set of search-form fields used by both the
 /// `/review` and `/done` pages (user id, file name, forward-from, size range,
 /// mongo `_id`). Callers add their own extra conditions (e.g. the `is_public`
@@ -17,8 +19,13 @@ pub struct ParsedFilters {
     pub search_size_max: i64,
     pub size_filter_active: bool,
     pub search_id: String,
+    /// Raw `YYYY-MM-DD` strings as typed (kept for re-populating the form), IST calendar days.
+    pub search_date_from: String,
+    pub search_date_to: String,
+    pub date_filter_active: bool,
     pub invalid_user_id: bool,
     pub invalid_file_id: bool,
+    pub invalid_date_range: bool,
 }
 
 pub struct RawFilterInput<'a> {
@@ -28,7 +35,10 @@ pub struct RawFilterInput<'a> {
     pub size_min: &'a str,
     pub size_max: &'a str,
     pub id: &'a str,
+    pub date_from: &'a str,
+    pub date_to: &'a str,
 }
+
 
 pub fn parse_filters(input: RawFilterInput) -> ParsedFilters {
     let mut conditions = Vec::new();
@@ -108,6 +118,52 @@ pub fn parse_filters(input: RawFilterInput) -> ParsedFilters {
         }
     }
 
+    // --- creation date range (IST calendar days, against the `time` field) ---
+    let mut search_date_from = input.date_from.trim().to_string();
+    let mut search_date_to = input.date_to.trim().to_string();
+    let mut invalid_date_range = false;
+    let mut from_epoch = if search_date_from.is_empty() {
+        None
+    } else {
+        match ist_date_start_epoch(&search_date_from) {
+            Some(epoch) => Some(epoch),
+            None => {
+                invalid_date_range = true;
+                search_date_from.clear();
+                None
+            }
+        }
+    };
+    let mut to_epoch = if search_date_to.is_empty() {
+        None
+    } else {
+        match ist_date_end_epoch(&search_date_to) {
+            Some(epoch) => Some(epoch),
+            None => {
+                invalid_date_range = true;
+                search_date_to.clear();
+                None
+            }
+        }
+    };
+    if let (Some(from), Some(to)) = (from_epoch, to_epoch) {
+        if from > to {
+            std::mem::swap(&mut from_epoch, &mut to_epoch);
+            std::mem::swap(&mut search_date_from, &mut search_date_to);
+        }
+    }
+    let date_filter_active = from_epoch.is_some() || to_epoch.is_some();
+    if date_filter_active {
+        let mut range = Document::new();
+        if let Some(from) = from_epoch {
+            range.insert("$gte", from);
+        }
+        if let Some(to) = to_epoch {
+            range.insert("$lte", to);
+        }
+        conditions.push(doc! { "time": range });
+    }
+
     ParsedFilters {
         conditions,
         search_user_id,
@@ -119,7 +175,11 @@ pub fn parse_filters(input: RawFilterInput) -> ParsedFilters {
         search_size_max: size_max,
         size_filter_active,
         search_id,
+        search_date_from,
+        search_date_to,
+        date_filter_active,
         invalid_user_id,
         invalid_file_id,
+        invalid_date_range,
     }
 }

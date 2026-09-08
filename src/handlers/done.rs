@@ -34,6 +34,10 @@ pub struct DoneQuery {
     #[serde(default)]
     pub size_max: String,
     #[serde(default)]
+    pub date_from: String,
+    #[serde(default)]
+    pub date_to: String,
+    #[serde(default)]
     pub page: String,
 }
 
@@ -59,6 +63,9 @@ struct DoneTemplate {
     search_size_min: i64,
     search_size_max: i64,
     size_filter_active: bool,
+    search_date_from: String,
+    search_date_to: String,
+    date_filter_active: bool,
     page_heading: String,
     stats: Option<DoneStats>,
     total_pages: i64,
@@ -75,6 +82,8 @@ fn build_done_url(
     size_min: i64,
     size_max: i64,
     search_id: &str,
+    search_date_from: &str,
+    search_date_to: &str,
 ) -> String {
     let mut params: Vec<(String, String)> = vec![("page".into(), page.to_string())];
     if !search_user_id.is_empty() {
@@ -96,6 +105,12 @@ fn build_done_url(
     params.push(("size_max".into(), size_max.to_string()));
     if !search_id.is_empty() {
         params.push(("id".into(), search_id.to_string()));
+    }
+    if !search_date_from.is_empty() {
+        params.push(("date_from".into(), search_date_from.to_string()));
+    }
+    if !search_date_to.is_empty() {
+        params.push(("date_to".into(), search_date_to.to_string()));
     }
     let query = params
         .iter()
@@ -123,6 +138,8 @@ pub async fn done(
         size_min: &q.size_min,
         size_max: &q.size_max,
         id: &q.id,
+        date_from: &q.date_from,
+        date_to: &q.date_to,
     });
 
     if parsed.invalid_user_id {
@@ -135,6 +152,12 @@ pub async fn done(
         flashes.push(Flash {
             category: "error".into(),
             message: "Invalid File ID format. Please enter a valid 24-character hex ID.".into(),
+        });
+    }
+    if parsed.invalid_date_range {
+        flashes.push(Flash {
+            category: "error".into(),
+            message: "Invalid date range. Please use valid dates.".into(),
         });
     }
 
@@ -182,6 +205,7 @@ pub async fn done(
         || !parsed.search_file_name.is_empty()
         || !parsed.search_forward_from.is_empty()
         || parsed.size_filter_active
+        || parsed.date_filter_active
         || !parsed.search_id.is_empty();
 
     let stats = if has_extra_filter {
@@ -208,6 +232,9 @@ pub async fn done(
             size_filter_active: parsed.size_filter_active,
             search_size_min: parsed.search_size_min,
             search_size_max: parsed.search_size_max,
+            date_filter_active: parsed.date_filter_active,
+            search_date_from: parsed.search_date_from.clone(),
+            search_date_to: parsed.search_date_to.clone(),
             is_exclusion: parsed.is_exclusion,
             total_fmt: commas(total_docs),
             accepted_fmt: commas(accepted),
@@ -258,6 +285,8 @@ pub async fn done(
                 parsed.search_size_min,
                 parsed.search_size_max,
                 &parsed.search_id,
+                &parsed.search_date_from,
+                &parsed.search_date_to,
             ),
             active: p == page,
         })
@@ -277,6 +306,9 @@ pub async fn done(
         search_size_min: parsed.search_size_min,
         search_size_max: parsed.search_size_max,
         size_filter_active: parsed.size_filter_active,
+        search_date_from: parsed.search_date_from,
+        search_date_to: parsed.search_date_to,
+        date_filter_active: parsed.date_filter_active,
         page_heading,
         stats,
         total_pages,

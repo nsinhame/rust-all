@@ -63,6 +63,20 @@
                     </div>
                 </div>
 
+                <div class="search-input-group" style="margin-bottom: 16px;">
+                    <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 8px; display: block;">Created Date (IST):</label>
+                    <div class="date-range-inputs">
+                        <input type="date" name="date_from" id="dateFrom" value="{{ search_date_from }}" class="search-input">
+                        <span class="date-range-sep">to</span>
+                        <input type="date" name="date_to" id="dateTo" value="{{ search_date_to }}" class="search-input">
+                    </div>
+                    <div class="date-quick-buttons">
+                        <button type="button" class="btn-date-preset" onclick="applyDatePreset('today')">Today</button>
+                        <button type="button" class="btn-date-preset" onclick="applyDatePreset('week')">This Week</button>
+                        <button type="button" class="btn-date-preset" onclick="applyDatePreset('month')">This Month</button>
+                    </div>
+                </div>
+
                 <div class="search-input-group" style="margin-bottom: 12px;">
                     <label style="font-size: 0.9em; font-weight: 600; color: #555; margin-bottom: 5px; display: block;">File Hash:</label>
                     <input
@@ -99,6 +113,17 @@
                 {% endif %}
                 {% if size_filter_active %}
                     <span class="search-badge search-badge-size">📏 {{ search_size_min }}–{{ search_size_max }} MB</span>
+                {% endif %}
+                {% if date_filter_active %}
+                    <span class="search-badge search-badge-date">📅
+                    {% if !search_date_from.is_empty() && !search_date_to.is_empty() %}
+                        {{ search_date_from }} → {{ search_date_to }}
+                    {% else if !search_date_from.is_empty() %}
+                        From {{ search_date_from }}
+                    {% else %}
+                        Until {{ search_date_to }}
+                    {% endif %}
+                    </span>
                 {% endif %}
                 {% if !search_forward_from.is_empty() %}
                     <span class="search-badge search-badge-forward">👤 "{{ search_forward_from }}"</span>
@@ -306,9 +331,33 @@
                         {{ s.search_size_min }}–{{ s.search_size_max }} MB
                     </div>
                 </div>
+            {% else if s.date_filter_active %}
+                <h3>📅 Date Range Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        {% if !s.search_date_from.is_empty() && !s.search_date_to.is_empty() %}
+                        {{ s.search_date_from }} → {{ s.search_date_to }}
+                        {% else if !s.search_date_from.is_empty() %}
+                        From {{ s.search_date_from }}
+                        {% else %}
+                        Until {{ s.search_date_to }}
+                        {% endif %}
+                    </div>
+                </div>
             {% endif %}
             {% if s.size_filter_active && (!search_user_id.is_empty() || !search_file_name.is_empty()) %}
             <div class="size-active-tag">📏 Size: {{ s.search_size_min }}–{{ s.search_size_max }} MB</div>
+            {% endif %}
+            {% if s.date_filter_active && (!search_user_id.is_empty() || !search_file_name.is_empty() || s.size_filter_active) %}
+            <div class="date-active-tag">📅
+                {% if !s.search_date_from.is_empty() && !s.search_date_to.is_empty() %}
+                {{ s.search_date_from }} → {{ s.search_date_to }}
+                {% else if !s.search_date_from.is_empty() %}
+                From {{ s.search_date_from }}
+                {% else %}
+                Until {{ s.search_date_to }}
+                {% endif %}
+            </div>
             {% endif %}
 
             <div class="user-stats-grid">
@@ -610,6 +659,33 @@
             updateSizeSlider();
         });
         updateSizeSlider();
+    }
+
+    // Computes the requested preset range as IST calendar dates and re-submits the search form.
+    function applyDatePreset(preset) {
+        const istToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+        const [y, m, d] = istToday.split('-').map(Number);
+        const today = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+        let from = new Date(today);
+        let to = new Date(today);
+
+        if (preset === 'week') {
+            const dow = today.getUTCDay();
+            const diffToMonday = dow === 0 ? 6 : dow - 1;
+            from.setUTCDate(today.getUTCDate() - diffToMonday);
+            to = new Date(from);
+            to.setUTCDate(from.getUTCDate() + 6);
+        } else if (preset === 'month') {
+            from = new Date(Date.UTC(y, m - 1, 1, 12, 0, 0));
+            to = new Date(Date.UTC(y, m, 0, 12, 0, 0));
+        }
+
+        const fmt = dt => `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+        const dateFromEl = document.getElementById('dateFrom');
+        const dateToEl = document.getElementById('dateTo');
+        dateFromEl.value = fmt(from);
+        dateToEl.value = fmt(to);
+        dateFromEl.closest('form').submit();
     }
 
     function submitDecisions() {
