@@ -74,6 +74,8 @@ pub struct FileCard {
     pub forward_chat_title: String,
     pub forward_chat_username: String,
     pub has_forward_info: bool,
+    pub dl_url: String,
+    pub watch_url: String,
     // done-page only
     pub is_public: bool,
     pub special_type: String,
@@ -82,7 +84,7 @@ pub struct FileCard {
 }
 
 impl FileCard {
-    pub fn from_doc(doc: &Document, index: usize) -> Self {
+    pub fn from_doc(doc: &Document, index: usize, fqdn: &str) -> Self {
         let id = get_object_id(doc).map(|o| o.to_hex()).unwrap_or_default();
         let username = get_str(doc, "username").unwrap_or_default();
         let forward_first_name = get_str(doc, "forward_first_name").unwrap_or_default();
@@ -99,13 +101,18 @@ impl FileCard {
             .map(crate::util::format_ist)
             .unwrap_or_default();
 
+        let file_name = get_str(doc, "file_name").unwrap_or_else(|| "Unknown".to_string());
+        let fqdn = fqdn.trim().trim_end_matches('/');
+        let dl_url = format!("https://{fqdn}/dl/{id}/{file_name}");
+        let watch_url = format!("https://{fqdn}/watch/{id}/{file_name}");
+
         FileCard {
             index,
             id,
             user_id: get_i64(doc, "user_id")
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "N/A".to_string()),
-            file_name: get_str(doc, "file_name").unwrap_or_else(|| "Unknown".to_string()),
+            file_name,
             file_size: format_file_size(get_i64(doc, "file_size").unwrap_or(0)),
             mime_type: get_str(doc, "mime_type").unwrap_or_else(|| "Unknown".to_string()),
             username,
@@ -114,6 +121,8 @@ impl FileCard {
             forward_chat_title,
             forward_chat_username,
             has_forward_info,
+            dl_url,
+            watch_url,
             is_public: get_bool(doc, "is_public").unwrap_or(false),
             special_type: get_str(doc, "special_type").unwrap_or_default(),
             reviewed_by: get_str(doc, "reviewed_by").unwrap_or_default(),

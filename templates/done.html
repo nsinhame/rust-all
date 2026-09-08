@@ -153,8 +153,8 @@
                         <div class="file-id-row">
                             <div class="file-id">ID: {{ file.id }}</div>
                             <div class="file-preview-btns">
-                                <a href="https://fcdn.koyeb.app/dl/{{ file.id }}/{{ file.file_name }}" target="_blank" rel="noopener noreferrer" class="btn btn-dl">⬇ DL</a>
-                                <a href="https://fcdn.koyeb.app/watch/{{ file.id }}/{{ file.file_name }}" target="_blank" rel="noopener noreferrer" class="btn btn-watch">▶ Watch</a>
+                                <a href="{{ file.dl_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-dl">⬇ DL</a>
+                                <a href="{{ file.watch_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-watch">▶ Watch</a>
                             </div>
                         </div>
                     </div>

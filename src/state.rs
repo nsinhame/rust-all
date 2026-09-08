@@ -12,6 +12,8 @@ pub struct AppState {
     pub cookie_key: Key,
     /// Shared secret required (via `?key=` or the granting cookie) to reach the app at all.
     pub access_key: String,
+    /// Base domain (from `FQDN` env var) file dl/watch links are built against, e.g. `fcdn.example.com`.
+    pub fqdn: String,
 }
 
 impl FromRef<AppState> for Key {
@@ -25,6 +27,7 @@ pub fn build_state(
     cookie_key: Key,
     access_key: String,
     users: Vec<(String, String)>,
+    fqdn: String,
 ) -> AppState {
     let files_db = client.database("F2LxBot");
     AppState {
@@ -32,5 +35,6 @@ pub fn build_state(
         users,
         cookie_key,
         access_key,
+        fqdn,
     }
 }

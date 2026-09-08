@@ -96,6 +96,8 @@ a reviewer, edit the env vars and restart — no database migration needed.
      visitors must supply, and it also encrypts/signs session & flash cookies.
    - `LINK_REVIEW_USER1` / `LINK_REVIEW_USER1_PASS` (and `_USER2`, `_USER3`, ... as needed) —
      reviewer login credentials, see "Reviewer accounts" above.
+   - `FQDN` — base domain used to build each file's DL/Watch links, e.g. `fcdn.example.com`
+     (no scheme/path); change this whenever the CDN host changes, no redeploy of code needed.
    - Koyeb automatically injects `PORT`; the app already reads it.
 4. Pick the free instance size (1 instance, smallest plan) and deploy.
 5. Once live, open `https://<your-app>.koyeb.app/link-review?key=<ACCESS_KEY>` and log in with

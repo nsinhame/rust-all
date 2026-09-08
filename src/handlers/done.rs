@@ -222,7 +222,7 @@ pub async fn done(
     let files: Vec<FileCard> = docs
         .iter()
         .enumerate()
-        .map(|(i, d)| FileCard::from_doc(d, i + 1))
+        .map(|(i, d)| FileCard::from_doc(d, i + 1, &state.fqdn))
         .collect();
 
     if files.is_empty() {

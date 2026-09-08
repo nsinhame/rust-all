@@ -85,6 +85,8 @@ async fn main() {
     let mongodb_uri = std::env::var("MONGODB_URI").expect("MONGODB_URI must be set");
     let access_key = std::env::var("ACCESS_KEY")
         .expect("ACCESS_KEY must be set (this is the `?key=` value required to reach the app)");
+    let fqdn = std::env::var("FQDN")
+        .expect("FQDN must be set (base domain used to build dl/watch links, e.g. fcdn.example.com)");
     let users = load_users_from_env();
     if users.is_empty() {
         panic!(
@@ -97,7 +99,7 @@ async fn main() {
         .expect("failed to connect to MongoDB");
     // Cookie encryption is derived from ACCESS_KEY so only one secret needs managing.
     let cookie_key = derive_cookie_key(&access_key);
-    let app_state = build_state(&client, cookie_key, access_key, users);
+    let app_state = build_state(&client, cookie_key, access_key, users, fqdn);
 
     let index = IndexModel::builder().keys(doc! { "is_public": 1 }).build();
     if let Err(err) = app_state.files.create_index(index).await {
