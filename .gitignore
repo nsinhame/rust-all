@@ -1,5 +1,5 @@
 # Legacy Python app - kept locally only, not tracked in git
-link-allow-page/
+plgb/
 
 # Rust build artifacts
 target/
