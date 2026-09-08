@@ -124,6 +124,67 @@ body {
     color: #333;
 }
 
+/* Home Page */
+.home-container {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.home-container h2 {
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.home-subtitle {
+    color: #666;
+    margin-bottom: 40px;
+}
+
+.home-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+.home-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 220px;
+    height: 180px;
+    border-radius: 16px;
+    text-decoration: none;
+    color: white;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.home-btn:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.2);
+}
+
+.home-btn-icon {
+    font-size: 48px;
+}
+
+.home-btn-label {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.home-btn-plgb {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.home-btn-tgfs {
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    color: #065f46;
+}
+
 .form-group {
     margin-bottom: 20px;
 }

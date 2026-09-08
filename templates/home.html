@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="home-container">
+    <h2>Welcome, {{ username }}</h2>
+    <p class="home-subtitle">Choose which review system you'd like to work in.</p>
+
+    <div class="home-buttons">
+        <a href="{{ crate::BASE_PATH }}/review" class="home-btn home-btn-plgb">
+            <span class="home-btn-icon">🎬</span>
+            <span class="home-btn-label">Review PLGB</span>
+        </a>
+        <a href="{{ crate::BASE_PATH }}/tgfs" class="home-btn home-btn-tgfs">
+            <span class="home-btn-icon">📁</span>
+            <span class="home-btn-label">Review TGFS</span>
+        </a>
+    </div>
+</div>
+{% endblock %}

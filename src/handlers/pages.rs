@@ -29,10 +29,52 @@ struct InstructionsTemplate {
     flashes: Vec<Flash>,
 }
 
-/// `GET /` - redirects to `/review` if logged in, otherwise to `/login`
+#[derive(Template)]
+#[template(path = "home.html")]
+struct HomeTemplate {
+    logged_in: bool,
+    username: String,
+    flashes: Vec<Flash>,
+}
+
+#[derive(Template)]
+#[template(path = "tgfs.html")]
+struct TgfsTemplate {
+    logged_in: bool,
+    username: String,
+    flashes: Vec<Flash>,
+}
+
+/// `GET /` - redirects to `/home` if logged in, otherwise to `/login`
 /// (the `AuthUser` extractor itself redirects to `/login` on failure).
 pub async fn index(_user: AuthUser) -> Redirect {
-    Redirect::to(&format!("{}/review", crate::BASE_PATH))
+    Redirect::to(&format!("{}/home", crate::BASE_PATH))
+}
+
+pub async fn home(AuthUser(session): AuthUser, jar: PrivateCookieJar) -> impl IntoResponse {
+    let (jar, flash) = take_flash(jar);
+    let flashes = flash
+        .map(|(category, message)| vec![Flash { category, message }])
+        .unwrap_or_default();
+    let tmpl = HomeTemplate {
+        logged_in: true,
+        username: session.username,
+        flashes,
+    };
+    (jar, render(tmpl))
+}
+
+pub async fn tgfs(AuthUser(session): AuthUser, jar: PrivateCookieJar) -> impl IntoResponse {
+    let (jar, flash) = take_flash(jar);
+    let flashes = flash
+        .map(|(category, message)| vec![Flash { category, message }])
+        .unwrap_or_default();
+    let tmpl = TgfsTemplate {
+        logged_in: true,
+        username: session.username,
+        flashes,
+    };
+    (jar, render(tmpl))
 }
 
 pub async fn login_get(
@@ -40,7 +82,7 @@ pub async fn login_get(
     jar: PrivateCookieJar,
 ) -> impl IntoResponse {
     if session.is_some() {
-        return (jar, Redirect::to(&format!("{}/review", crate::BASE_PATH))).into_response();
+        return (jar, Redirect::to(&format!("{}/home", crate::BASE_PATH))).into_response();
     }
     let (jar, flash) = take_flash(jar);
     let flashes = flash
@@ -79,7 +121,7 @@ pub async fn login_post(
         let jar = jar
             .add(make_session_cookie(&session))
             .add(make_flash_cookie("success", "Login successful!"));
-        return (jar, Redirect::to(&format!("{}/review", crate::BASE_PATH))).into_response();
+        return (jar, Redirect::to(&format!("{}/home", crate::BASE_PATH))).into_response();
     }
 
     let flashes = vec![Flash {

@@ -113,6 +113,8 @@ async fn main() {
             get(handlers::pages::login_get).post(handlers::pages::login_post),
         )
         .route("/logout", get(handlers::pages::logout))
+        .route("/home", get(handlers::pages::home))
+        .route("/tgfs", get(handlers::pages::tgfs))
         .route("/instructions", get(handlers::pages::instructions))
         .route("/review", get(handlers::review::review))
         .route("/submit", post(handlers::review::submit))
