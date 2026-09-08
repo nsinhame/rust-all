@@ -14,7 +14,7 @@
                     <input
                         type="text"
                         name="user_id"
-                        placeholder="Enter User ID (e.g., 123 or -123)"
+                        placeholder="e.g. 123 or -123, or 123,456 for OR"
                         value="{{ search_user_id }}"
                         class="search-input"
                     >
@@ -396,7 +396,8 @@
 </div>
 
 <script>
-    // Computes the requested preset range as IST calendar dates and re-submits the search form.
+    // Computes the requested preset range as IST calendar dates and fills the date fields
+    // (does not submit - click Search or press Enter to apply).
     function applyDatePreset(preset) {
         const istToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
         const [y, m, d] = istToday.split('-').map(Number);
@@ -420,7 +421,6 @@
         const dateToEl = document.getElementById('dateTo');
         dateFromEl.value = fmt(from);
         dateToEl.value = fmt(to);
-        dateFromEl.closest('form').submit();
     }
 
     // Preserves current search/filter query params, resets to page 1 since page count changes with size.

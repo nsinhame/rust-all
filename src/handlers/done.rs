@@ -233,7 +233,12 @@ pub async fn done(
             .unwrap_or(0) as i64;
 
         Some(DoneStats {
-            search_user_id: parsed.actual_user_id.map(|v| v.to_string()).unwrap_or_default(),
+            search_user_id: parsed
+                .actual_user_ids
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
             search_file_name: parsed.search_file_name.clone(),
             search_reviewed_by: search_reviewed_by.clone(),
             size_filter_active: parsed.size_filter_active,

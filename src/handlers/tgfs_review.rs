@@ -172,7 +172,12 @@ pub async fn review(
         };
 
         Some(TgfsReviewStats {
-            search_user_id: parsed.actual_user_id.map(|v| v.to_string()).unwrap_or_default(),
+            search_user_id: parsed
+                .actual_user_ids
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
             search_bot_id: parsed.actual_bot_id.map(|v| v.to_string()).unwrap_or_default(),
             search_file_name: parsed.search_file_name.clone(),
             size_filter_active: parsed.size_filter_active,
@@ -201,7 +206,15 @@ pub async fn review(
     let mut filter_parts: Vec<String> = Vec::new();
     if !parsed.search_user_id.is_empty() {
         filter_parts.push(if parsed.is_exclusion {
-            format!("excluding user {}", parsed.actual_user_id.unwrap_or(0))
+            format!(
+                "excluding user {}",
+                parsed
+                    .actual_user_ids
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
         } else {
             format!("user {}", parsed.search_user_id)
         });

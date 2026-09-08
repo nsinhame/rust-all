@@ -274,7 +274,12 @@ pub async fn done(
             .count() as i64;
         let rejected = total_docs - accepted;
         Some(TgfsDoneStats {
-            search_user_id: parsed.actual_user_id.map(|v| v.to_string()).unwrap_or_default(),
+            search_user_id: parsed
+                .actual_user_ids
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
             search_bot_id: parsed.actual_bot_id.map(|v| v.to_string()).unwrap_or_default(),
             search_file_name: parsed.search_file_name.clone(),
             search_reviewed_by: search_reviewed_by.clone(),

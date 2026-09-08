@@ -21,8 +21,9 @@ pub struct ParsedFilters {
     pub conditions: Vec<Document>,
     /// Raw user id string as typed by the user (kept for re-populating the form).
     pub search_user_id: String,
-    /// Absolute value of the parsed user id (None if not supplied/invalid).
-    pub actual_user_id: Option<i64>,
+    /// Absolute values of every comma-separated user id supplied (OR'd together via `$in`,
+    /// or `$nin` when all are negative). Empty if not supplied/invalid.
+    pub actual_user_ids: Vec<i64>,
     pub is_exclusion: bool,
     pub search_file_name: String,
     pub search_forward_from: String,
@@ -64,25 +65,36 @@ pub fn parse_filters(input: RawFilterInput) -> ParsedFilters {
     }
     let size_filter_active = size_min > 0 || size_max < 4200;
 
-    // --- user id (positive = include, negative = exclude) ---
+    // --- user id (comma-separated list OR'd together; positive = include, negative = exclude) ---
     let mut search_user_id = input.user_id.trim().to_string();
-    let mut actual_user_id: Option<i64> = None;
+    let mut actual_user_ids: Vec<i64> = Vec::new();
     let mut is_exclusion = false;
     let mut invalid_user_id = false;
     if !search_user_id.is_empty() {
-        match search_user_id.parse::<i64>() {
-            Ok(parsed) => {
-                if parsed < 0 {
-                    is_exclusion = true;
-                    let abs_id = parsed.abs();
-                    actual_user_id = Some(abs_id);
-                    conditions.push(doc! { "user_id": { "$ne": abs_id } });
+        let parts: Vec<&str> = search_user_id
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let parsed_ids: Result<Vec<i64>, _> = parts.iter().map(|p| p.parse::<i64>()).collect();
+        match parsed_ids {
+            Ok(ids) if !ids.is_empty() => {
+                is_exclusion = ids.iter().all(|v| *v < 0);
+                let abs_ids: Vec<i64> = ids.iter().map(|v| v.abs()).collect();
+                actual_user_ids = abs_ids.clone();
+                if is_exclusion {
+                    if abs_ids.len() == 1 {
+                        conditions.push(doc! { "user_id": { "$ne": abs_ids[0] } });
+                    } else {
+                        conditions.push(doc! { "user_id": { "$nin": abs_ids } });
+                    }
+                } else if abs_ids.len() == 1 {
+                    conditions.push(doc! { "user_id": abs_ids[0] });
                 } else {
-                    actual_user_id = Some(parsed);
-                    conditions.push(doc! { "user_id": parsed });
+                    conditions.push(doc! { "user_id": { "$in": abs_ids } });
                 }
             }
-            Err(_) => {
+            _ => {
                 invalid_user_id = true;
                 search_user_id.clear();
             }
@@ -178,7 +190,7 @@ pub fn parse_filters(input: RawFilterInput) -> ParsedFilters {
     ParsedFilters {
         conditions,
         search_user_id,
-        actual_user_id,
+        actual_user_ids,
         is_exclusion,
         search_file_name,
         search_forward_from,

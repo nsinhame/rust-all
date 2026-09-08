@@ -111,6 +111,14 @@ pub async fn review(
         });
     }
 
+    // Comma-separated user ids joined back together for display (e.g. "123, 456").
+    let user_ids_display = parsed
+        .actual_user_ids
+        .iter()
+        .map(|v| v.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+
     let page_size = parse_page_size(&q.page_size);
     let has_any_filter = !parsed.conditions.is_empty();
 
@@ -149,20 +157,19 @@ pub async fn review(
             .await
             .unwrap_or(0) as i64;
 
-        let excluded_count = if parsed.is_exclusion {
-            if let Some(uid) = parsed.actual_user_id {
-                let count = state
+        let excluded_count = if parsed.is_exclusion && !parsed.actual_user_ids.is_empty() {
+            let mut total = 0i64;
+            for uid in &parsed.actual_user_ids {
+                total += state
                     .files
                     .count_documents(and_with(
-                        &[doc! { "user_id": uid }],
+                        &[doc! { "user_id": *uid }],
                         doc! { "is_public": { "$exists": false } },
                     ))
                     .await
                     .unwrap_or(0) as i64;
-                Some(count)
-            } else {
-                None
             }
+            Some(total)
         } else {
             None
         };
@@ -174,7 +181,7 @@ pub async fn review(
         };
 
         let stats = ReviewStats {
-            search_user_id: parsed.actual_user_id.map(|v| v.to_string()).unwrap_or_default(),
+            search_user_id: user_ids_display.clone(),
             search_file_name: parsed.search_file_name.clone(),
             size_filter_active: parsed.size_filter_active,
             search_size_min: parsed.search_size_min,
@@ -225,7 +232,7 @@ pub async fn review(
                 format!(
                     "No pending files found matching \"{}\" (excluding user {})",
                     parsed.search_file_name,
-                    parsed.actual_user_id.unwrap_or(0)
+                    user_ids_display
                 )
             } else {
                 format!(
@@ -237,7 +244,7 @@ pub async fn review(
             if parsed.is_exclusion {
                 format!(
                     "No pending files found (excluding user ID: {})",
-                    parsed.actual_user_id.unwrap_or(0)
+                    user_ids_display
                 )
             } else {
                 format!("No pending files found for user ID: {}", parsed.search_user_id)
@@ -262,14 +269,14 @@ pub async fn review(
             format!(
                 "Files: \"{}\" (Excluding User {})",
                 parsed.search_file_name,
-                parsed.actual_user_id.unwrap_or(0)
+                user_ids_display
             )
         } else {
             format!("Files: User {} + \"{}\"", parsed.search_user_id, parsed.search_file_name)
         }
     } else if !parsed.search_user_id.is_empty() {
         if parsed.is_exclusion {
-            format!("Review Files (Excluding User {})", parsed.actual_user_id.unwrap_or(0))
+            format!("Review Files (Excluding User {})", user_ids_display)
         } else {
             format!("Review Files for User {}", parsed.search_user_id)
         }
