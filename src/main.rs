@@ -80,10 +80,17 @@ async fn build_tgfs_state() -> TgfsState {
     let mongodb_uri = std::env::var("TGFS_MONGODB_URI")
         .expect("TGFS_MONGODB_URI must be set (primary Mongo connection string for the TGFS bot)");
     let dbname = std::env::var("TGFS_MONGODB_DBNAME").unwrap_or_else(|_| "TGFS".to_string());
-    let public_url = std::env::var("TGFS_PUBLIC_URL")
+    let mut public_url = std::env::var("TGFS_PUBLIC_URL")
         .expect("TGFS_PUBLIC_URL must be set (base URL used to build TGFS dl/watch links, e.g. https://tgfs.example.com)")
+        .trim()
         .trim_end_matches('/')
         .to_string();
+    // A scheme-less value (e.g. `tgfs.example.com`) would make the built dl/watch
+    // `<a href>` relative, so the browser resolves it against this app's own
+    // Koyeb origin instead of the TGFS server. Default to https if none was given.
+    if !public_url.starts_with("http://") && !public_url.starts_with("https://") {
+        public_url = format!("https://{public_url}");
+    }
 
     let primary_client = Client::with_uri_str(&mongodb_uri)
         .await
