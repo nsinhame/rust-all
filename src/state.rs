@@ -7,6 +7,8 @@ use mongodb::{Client, Collection};
 #[derive(Clone)]
 pub struct AppState {
     pub files: Collection<Document>,
+    /// The plgb bot's `users` collection (Telegram user id `id`, `warn_count`, etc.).
+    pub bot_users: Collection<Document>,
     /// (username, password) pairs loaded from `LINK_REVIEW_USER{n}` / `LINK_REVIEW_USER{n}_PASS`.
     pub users: Vec<(String, String)>,
     pub cookie_key: Key,
@@ -32,6 +34,7 @@ pub fn build_state(
     let files_db = client.database("F2LxBot");
     AppState {
         files: files_db.collection::<Document>("file"),
+        bot_users: files_db.collection::<Document>("users"),
         users,
         cookie_key,
         access_key,

@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::auth::{take_flash, AuthUser};
-use crate::models::{Flash, FileCard, ReviewStats};
+use crate::models::{get_i64, Flash, FileCard, ReviewStats};
 use crate::query_filters::{parse_filters, parse_page_size, RawFilterInput};
 use crate::state::AppState;
 use crate::util::{commas, fmt_pct1, render};
@@ -341,6 +341,7 @@ pub async fn submit(
     let mut accepted_count = 0i64;
     let mut rejected_count = 0i64;
     let mut deleted_count = 0i64;
+    let mut warned_count = 0i64;
 
     for (file_id, decision) in payload.decisions.iter() {
         let oid = match ObjectId::parse_str(file_id) {
@@ -348,10 +349,31 @@ pub async fn submit(
             Err(_) => continue,
         };
 
-        if decision == "delete" {
-            let result = state.files.delete_one(doc! { "_id": oid }).await;
+        if decision == "delete" || decision == "delete_warn" {
+            // find_one_and_delete lets us read `user_id` off the doc before it's gone.
+            let result = state.files.find_one_and_delete(doc! { "_id": oid }).await;
             match result {
-                Ok(_) => deleted_count += 1,
+                Ok(Some(file_doc)) => {
+                    deleted_count += 1;
+                    if decision == "delete_warn" {
+                        if let Some(user_id) = get_i64(&file_doc, "user_id") {
+                            let warn_result = state
+                                .bot_users
+                                .update_one(doc! { "id": user_id }, doc! { "$inc": { "warn_count": 1 } })
+                                .upsert(true)
+                                .await;
+                            match warn_result {
+                                Ok(_) => warned_count += 1,
+                                Err(err) => tracing::error!(
+                                    "error incrementing warn_count for user {user_id} (file {file_id}): {err}"
+                                ),
+                            }
+                        } else {
+                            tracing::warn!("delete_warn on file {file_id} but it has no user_id; skipped warn");
+                        }
+                    }
+                }
+                Ok(None) => {}
                 Err(err) => tracing::error!("error deleting file {file_id}: {err}"),
             }
             continue;
@@ -393,14 +415,22 @@ pub async fn submit(
         }
     }
 
+    let warned_suffix = if warned_count > 0 {
+        format!(" ({warned_count} user{} warned)", if warned_count == 1 { "" } else { "s" })
+    } else {
+        String::new()
+    };
+
     Json(serde_json::json!({
         "success": true,
         "accepted": accepted_count,
         "rejected": rejected_count,
         "deleted": deleted_count,
+        "warned": warned_count,
         "message": format!(
-            "Processed {} files successfully!",
-            accepted_count + rejected_count + deleted_count
+            "Processed {} files successfully!{}",
+            accepted_count + rejected_count + deleted_count,
+            warned_suffix
         ),
     }))
 }

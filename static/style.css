@@ -304,6 +304,8 @@ body {
     background: #10b981;
     color: white;
     flex: 1;
+    padding: 9px 14px;
+    font-size: 12.5px;
 }
 
 .btn-accept:hover {
@@ -319,6 +321,8 @@ body {
     background: #ef4444;
     color: white;
     flex: 1;
+    padding: 9px 14px;
+    font-size: 12.5px;
 }
 
 .btn-reject:hover {
@@ -334,6 +338,8 @@ body {
     background: #4b5563;
     color: white;
     flex: 1;
+    padding: 9px 14px;
+    font-size: 12.5px;
 }
 
 .btn-delete:hover {
@@ -343,6 +349,23 @@ body {
 .btn-delete.selected {
     background: #1f2937;
     box-shadow: 0 0 0 3px rgba(75, 85, 99, 0.4);
+}
+
+.btn-delete_warn {
+    background: #9a3412;
+    color: white;
+    flex: 1;
+    padding: 9px 14px;
+    font-size: 12.5px;
+}
+
+.btn-delete_warn:hover {
+    background: #7c2d12;
+}
+
+.btn-delete_warn.selected {
+    background: #6c2410;
+    box-shadow: 0 0 0 3px rgba(154, 52, 18, 0.4);
 }
 
 /* Review Page */
@@ -1515,11 +1538,13 @@ body {
 .file-actions {
     display: flex;
     gap: 15px;
+    flex-wrap: wrap;
 }
 
 .bulk-actions {
     display: flex;
     gap: 15px;
+    flex-wrap: wrap;
     margin: 24px 0;
     padding: 16px;
     background: #f9fafb;

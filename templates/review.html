@@ -264,6 +264,9 @@
                 <button class="btn btn-delete" onclick="selectDecision('{{ file.id }}', 'delete', this)">
                     🗑 Delete
                 </button>
+                <button class="btn btn-delete_warn" onclick="selectDecision('{{ file.id }}', 'delete_warn', this)">
+                    🚫 Delete & Warn
+                </button>
             </div>
         </div>
         {% endfor %}
@@ -278,6 +281,9 @@
         </button>
         <button type="button" class="btn btn-delete" onclick="bulkSetDecision('delete')">
             🗑 Delete All
+        </button>
+        <button type="button" class="btn btn-delete_warn" onclick="bulkSetDecision('delete_warn')">
+            🚫 Delete & Warn All
         </button>
     </div>
 
@@ -527,9 +533,11 @@
         let acceptCount = 0;
         let rejectCount = 0;
         let deleteCount = 0;
+        let deleteWarnCount = 0;
         let acceptList = [];
         let rejectList = [];
         let deleteList = [];
+        let deleteWarnList = [];
 
         document.querySelectorAll('.file-card').forEach(card => {
             const fileId = card.dataset.fileId;
@@ -547,6 +555,9 @@
             } else if (decisions[fileId] === 'delete') {
                 deleteCount++;
                 deleteList.push({ name: fileName, original: originalName, renamed: wasRenamed });
+            } else if (decisions[fileId] === 'delete_warn') {
+                deleteWarnCount++;
+                deleteWarnList.push({ name: fileName, original: originalName, renamed: wasRenamed });
             }
         });
 
@@ -563,6 +574,10 @@
                 <div class="stat-box delete-stat">
                     <div class="stat-number">${deleteCount}</div>
                     <div class="stat-label">Files to Delete</div>
+                </div>
+                <div class="stat-box delete-stat">
+                    <div class="stat-number">${deleteWarnCount}</div>
+                    <div class="stat-label">Delete & Warn</div>
                 </div>
             </div>
         `;
@@ -597,6 +612,14 @@
                 summaryHTML += `<li>${item.name}</li>`;
             });
             summaryHTML += '</ul><p class="delete-warning">⚠ These entries will be permanently removed from the database and cannot be undone.</p></div>';
+        }
+
+        if (deleteWarnList.length > 0) {
+            summaryHTML += '<div class="summary-section"><h3>🚫 Deleting & warning user:</h3><ul>';
+            deleteWarnList.forEach(item => {
+                summaryHTML += `<li>${item.name}</li>`;
+            });
+            summaryHTML += '</ul><p class="delete-warning">⚠ These entries will be permanently deleted and the uploader\'s warn_count will be incremented. This cannot be undone.</p></div>';
         }
 
         const specialHashList = [];
@@ -729,7 +752,11 @@
         }
 
         const deleteCount = Object.values(decisions).filter(d => d === 'delete').length;
+        const deleteWarnCount = Object.values(decisions).filter(d => d === 'delete_warn').length;
         if (deleteCount > 0 && !confirm(`This will permanently delete ${deleteCount} file entr${deleteCount > 1 ? 'ies' : 'y'} from the database. This cannot be undone. Continue?`)) {
+            return;
+        }
+        if (deleteWarnCount > 0 && !confirm(`This will permanently delete ${deleteWarnCount} file entr${deleteWarnCount > 1 ? 'ies' : 'y'} and increment the warn_count for ${deleteWarnCount > 1 ? 'their uploaders' : 'its uploader'}. This cannot be undone. Continue?`)) {
             return;
         }
 
