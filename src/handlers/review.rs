@@ -59,6 +59,7 @@ struct ReviewTemplate {
     stats: Option<ReviewStats>,
     page_size: i64,
     show_plgb_nav: bool,
+    show_tgfs_nav: bool,
 }
 
 /// Combines a set of pre-parsed search conditions with one extra condition,
@@ -303,6 +304,7 @@ pub async fn review(
         stats,
         page_size,
         show_plgb_nav: true,
+        show_tgfs_nav: false,
     };
 
 

@@ -19,6 +19,12 @@
                 <a href="{{ crate::BASE_PATH }}/stats-plgb">Stats</a>
                 <a href="{{ crate::BASE_PATH }}/instructions-plgb">Instructions</a>
                 {% endif %}
+                {% if show_tgfs_nav %}
+                <a href="{{ crate::BASE_PATH }}/review-tgfs">Review</a>
+                <a href="{{ crate::BASE_PATH }}/done-tgfs">Done</a>
+                <a href="{{ crate::BASE_PATH }}/stats-tgfs">Stats</a>
+                <a href="{{ crate::BASE_PATH }}/instructions-tgfs">Instructions</a>
+                {% endif %}
                 <span class="username">{{ username }}</span>
                 <a href="{{ crate::BASE_PATH }}/logout" class="logout-btn">Logout</a>
             </div>

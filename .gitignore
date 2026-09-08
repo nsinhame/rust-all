@@ -1,5 +1,6 @@
 # Legacy Python app - kept locally only, not tracked in git
 plgb/
+telethon-plgb/
 
 # Rust build artifacts
 target/

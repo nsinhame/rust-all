@@ -20,6 +20,7 @@ struct LoginTemplate {
     username: String,
     flashes: Vec<Flash>,
     show_plgb_nav: bool,
+    show_tgfs_nav: bool,
 }
 
 #[derive(Template)]
@@ -29,6 +30,17 @@ struct InstructionsTemplate {
     username: String,
     flashes: Vec<Flash>,
     show_plgb_nav: bool,
+    show_tgfs_nav: bool,
+}
+
+#[derive(Template)]
+#[template(path = "instructions-tgfs.html")]
+struct InstructionsTgfsTemplate {
+    logged_in: bool,
+    username: String,
+    flashes: Vec<Flash>,
+    show_plgb_nav: bool,
+    show_tgfs_nav: bool,
 }
 
 #[derive(Template)]
@@ -38,15 +50,7 @@ struct HomeTemplate {
     username: String,
     flashes: Vec<Flash>,
     show_plgb_nav: bool,
-}
-
-#[derive(Template)]
-#[template(path = "tgfs.html")]
-struct TgfsTemplate {
-    logged_in: bool,
-    username: String,
-    flashes: Vec<Flash>,
-    show_plgb_nav: bool,
+    show_tgfs_nav: bool,
 }
 
 /// `GET /` - redirects to `/home` if logged in, otherwise to `/login`
@@ -65,22 +69,15 @@ pub async fn home(AuthUser(session): AuthUser, jar: PrivateCookieJar) -> impl In
         username: session.username,
         flashes,
         show_plgb_nav: false,
+        show_tgfs_nav: false,
     };
     (jar, render(tmpl))
 }
 
-pub async fn tgfs(AuthUser(session): AuthUser, jar: PrivateCookieJar) -> impl IntoResponse {
-    let (jar, flash) = take_flash(jar);
-    let flashes = flash
-        .map(|(category, message)| vec![Flash { category, message }])
-        .unwrap_or_default();
-    let tmpl = TgfsTemplate {
-        logged_in: true,
-        username: session.username,
-        flashes,
-        show_plgb_nav: false,
-    };
-    (jar, render(tmpl))
+/// `GET /tgfs` - kept around for old bookmarks/links; the home page now links
+/// straight to `/review-tgfs`.
+pub async fn tgfs() -> Redirect {
+    Redirect::to(&format!("{}/review-tgfs", crate::BASE_PATH))
 }
 
 pub async fn login_get(
@@ -99,6 +96,7 @@ pub async fn login_get(
         username: String::new(),
         flashes,
         show_plgb_nav: false,
+        show_tgfs_nav: false,
     };
     (jar, render(tmpl)).into_response()
 }
@@ -140,6 +138,7 @@ pub async fn login_post(
         username: String::new(),
         flashes,
         show_plgb_nav: false,
+        show_tgfs_nav: false,
     };
     render(tmpl).into_response()
 }
@@ -161,6 +160,25 @@ pub async fn instructions(AuthUser(session): AuthUser, jar: PrivateCookieJar) ->
         username: session.username,
         flashes,
         show_plgb_nav: true,
+        show_tgfs_nav: false,
+    };
+    (jar, render(tmpl))
+}
+
+pub async fn instructions_tgfs(
+    AuthUser(session): AuthUser,
+    jar: PrivateCookieJar,
+) -> impl IntoResponse {
+    let (jar, flash) = take_flash(jar);
+    let flashes = flash
+        .map(|(category, message)| vec![Flash { category, message }])
+        .unwrap_or_default();
+    let tmpl = InstructionsTgfsTemplate {
+        logged_in: true,
+        username: session.username,
+        flashes,
+        show_plgb_nav: false,
+        show_tgfs_nav: true,
     };
     (jar, render(tmpl))
 }

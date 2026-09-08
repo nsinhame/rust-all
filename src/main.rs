@@ -3,6 +3,10 @@ mod handlers;
 mod models;
 mod query_filters;
 mod state;
+mod tgfs_join;
+mod tgfs_models;
+mod tgfs_query_filters;
+mod tgfs_token;
 mod util;
 
 use axum::extract::{Query, Request, State};
@@ -12,7 +16,7 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::Router;
 use axum_extra::extract::cookie::{Cookie, PrivateCookieJar};
-use mongodb::bson::doc;
+use mongodb::bson::{doc, Bson, Document};
 use mongodb::{Client, IndexModel};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -20,7 +24,7 @@ use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
 use auth::derive_cookie_key;
-use state::{build_state, AppState};
+use state::{build_state, AppState, TgfsState};
 
 /// URL prefix the whole app is served under, e.g. `https://host/link-review/review`.
 pub const BASE_PATH: &str = "/link-review";
@@ -28,8 +32,8 @@ pub const BASE_PATH: &str = "/link-review";
 /// Name of the cookie that remembers a successful `?key=` check.
 const ACCESS_COOKIE: &str = "link_access";
 
-/// Loads reviewer credentials from `LINK_REVIEW_USER{n}` / `LINK_REVIEW_USER{n}_PASS` pairs,
-/// starting at n=1 and stopping at the first missing/incomplete pair.
+/// Loads reviewer credentials from `LINK_REVIEW_USER{n}` / `LINK_REVIEW_USER{n}_PASS`
+/// pairs, starting at n=1 and stopping at the first missing/incomplete pair.
 fn load_users_from_env() -> Vec<(String, String)> {
     let mut users = Vec::new();
     let mut n = 1;
@@ -45,6 +49,97 @@ fn load_users_from_env() -> Vec<(String, String)> {
         }
     }
     users
+}
+
+/// Loads `PREFIX1`, `PREFIX2`, ... (and a bare `PREFIX` inserted first, if set),
+/// mirroring telethon-plgb's `ConfigBase.get_numbered_tokens` — used for the
+/// optional `TGFS_MONGODB_INDEX_URI*` / `TGFS_MONGODB_BLOB_URI*` cluster lists.
+fn load_numbered_env(prefix: &str) -> Vec<String> {
+    let mut numbered: Vec<(u32, String)> = Vec::new();
+    let mut bare: Option<String> = None;
+    for (key, value) in std::env::vars() {
+        if let Some(suffix) = key.strip_prefix(prefix) {
+            if suffix.is_empty() {
+                bare = Some(value);
+            } else if let Ok(n) = suffix.parse::<u32>() {
+                numbered.push((n, value));
+            }
+        }
+    }
+    numbered.sort_by_key(|(n, _)| *n);
+    let mut result: Vec<String> = numbered.into_iter().map(|(_, v)| v).collect();
+    if let Some(bare) = bare {
+        result.insert(0, bare);
+    }
+    result
+}
+
+/// Connects to telethon-plgb's Mongo deployment(s) and loads its link-signing
+/// secret, mirroring `tgfs/database/mongodb/__init__.py`'s `MongoDB.connect`.
+async fn build_tgfs_state() -> TgfsState {
+    let mongodb_uri = std::env::var("TGFS_MONGODB_URI")
+        .expect("TGFS_MONGODB_URI must be set (primary Mongo connection string for the TGFS bot)");
+    let dbname = std::env::var("TGFS_MONGODB_DBNAME").unwrap_or_else(|_| "TGFS".to_string());
+    let public_url = std::env::var("TGFS_PUBLIC_URL")
+        .expect("TGFS_PUBLIC_URL must be set (base URL used to build TGFS dl/watch links, e.g. https://tgfs.example.com)")
+        .trim_end_matches('/')
+        .to_string();
+
+    let primary_client = Client::with_uri_str(&mongodb_uri)
+        .await
+        .expect("failed to connect to TGFS_MONGODB_URI");
+    let primary_db = primary_client.database(&dbname);
+
+    let mut index_colls = Vec::new();
+    for uri in load_numbered_env("TGFS_MONGODB_INDEX_URI") {
+        let client = Client::with_uri_str(&uri)
+            .await
+            .expect("failed to connect to a TGFS_MONGODB_INDEX_URI* cluster");
+        index_colls.push(client.database(&dbname).collection::<Document>("user_files"));
+    }
+    if index_colls.is_empty() {
+        index_colls.push(primary_db.collection::<Document>("user_files"));
+    }
+
+    let mut blob_colls = Vec::new();
+    for uri in load_numbered_env("TGFS_MONGODB_BLOB_URI") {
+        let client = Client::with_uri_str(&uri)
+            .await
+            .expect("failed to connect to a TGFS_MONGODB_BLOB_URI* cluster");
+        blob_colls.push(client.database(&dbname).collection::<Document>("files"));
+    }
+    if blob_colls.is_empty() {
+        blob_colls.push(primary_db.collection::<Document>("files"));
+    }
+
+    let config = primary_db.collection::<Document>("app_config");
+    let link_secret = config
+        .find_one(doc! { "_id": "link.secret" })
+        .await
+        .expect("failed to query TGFS config.link.secret")
+        .and_then(|d| match d.get("value") {
+            Some(Bson::Binary(b)) => Some(b.bytes.clone()),
+            _ => None,
+        })
+        .expect(
+            "TGFS config.link.secret not found; start the tgfs bot at least once \
+             first so it can generate its link-signing secret",
+        );
+
+    let reviewed_index = IndexModel::builder().keys(doc! { "reviewed_at": 1 }).build();
+    for coll in &blob_colls {
+        if let Err(err) = coll.create_index(reviewed_index.clone()).await {
+            tracing::warn!("failed to create tgfs reviewed_at index: {err}");
+        }
+    }
+
+    TgfsState {
+        primary_users: primary_db.collection::<Document>("users"),
+        index_colls,
+        blob_colls,
+        link_secret,
+        public_url,
+    }
 }
 
 /// Gate for everything under [`BASE_PATH`]: requires a valid `link_access` cookie, or a
@@ -82,11 +177,11 @@ async fn main() {
     tracing_subscriber::fmt::init();
     dotenvy::dotenv().ok();
 
-    let mongodb_uri = std::env::var("MONGODB_URI").expect("MONGODB_URI must be set");
+    let mongodb_uri = std::env::var("PLGB_MONGODB_URI").expect("PLGB_MONGODB_URI must be set");
     let access_key = std::env::var("ACCESS_KEY")
         .expect("ACCESS_KEY must be set (this is the `?key=` value required to reach the app)");
-    let fqdn = std::env::var("FQDN")
-        .expect("FQDN must be set (base domain used to build dl/watch links, e.g. fcdn.example.com)");
+    let fqdn = std::env::var("PLGB_FQDN")
+        .expect("PLGB_FQDN must be set (base domain used to build dl/watch links, e.g. fcdn.example.com)");
     let users = load_users_from_env();
     if users.is_empty() {
         panic!(
@@ -97,9 +192,10 @@ async fn main() {
     let client = Client::with_uri_str(&mongodb_uri)
         .await
         .expect("failed to connect to MongoDB");
+    let tgfs_state = build_tgfs_state().await;
     // Cookie encryption is derived from ACCESS_KEY so only one secret needs managing.
     let cookie_key = derive_cookie_key(&access_key);
-    let app_state = build_state(&client, cookie_key, access_key, users, fqdn);
+    let app_state = build_state(&client, cookie_key, access_key, users, fqdn, tgfs_state);
 
     let index = IndexModel::builder().keys(doc! { "is_public": 1 }).build();
     if let Err(err) = app_state.files.create_index(index).await {
@@ -120,6 +216,11 @@ async fn main() {
         .route("/submit", post(handlers::review::submit))
         .route("/done-plgb", get(handlers::done::done))
         .route("/stats-plgb", get(handlers::stats::stats))
+        .route("/instructions-tgfs", get(handlers::pages::instructions_tgfs))
+        .route("/review-tgfs", get(handlers::tgfs_review::review))
+        .route("/submit-tgfs", post(handlers::tgfs_review::submit))
+        .route("/done-tgfs", get(handlers::tgfs_done::done))
+        .route("/stats-tgfs", get(handlers::tgfs_stats::stats))
         .nest_service("/static", ServeDir::new("static"))
         .layer(middleware::from_fn_with_state(
             app_state.clone(),

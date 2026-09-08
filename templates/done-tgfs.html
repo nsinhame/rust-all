@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+
+{% block title %}Done – Reviewed TGFS Files{% endblock %}
+
+{% block content %}
+<div class="review-layout">
+    <!-- Left Sidebar - Advanced Search -->
+    <aside class="left-sidebar">
+        <div class="sidebar-card">
+            <h3>🔍 Advanced Search</h3>
+            <form method="GET" action="{{ crate::BASE_PATH }}/done-tgfs" class="search-form" autocomplete="off">
+                <div class="search-input-group" style="margin-bottom: 8px;">
+                    <label class="search-label">User ID:</label>
+                    <input
+                        type="text"
+                        name="user_id"
+                        placeholder="Enter User ID (e.g., 123 or -123)"
+                        value="{{ search_user_id }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 8px;">
+                    <label class="search-label">Bot ID:</label>
+                    <input
+                        type="text"
+                        name="bot_id"
+                        placeholder="Enter Bot ID (e.g., 123 or -123 to exclude)"
+                        value="{{ search_bot_id }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 8px;">
+                    <label class="search-label">File Name:</label>
+                    <input
+                        type="text"
+                        name="file_name"
+                        placeholder="Enter file name keywords"
+                        value="{{ search_file_name }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 8px;">
+                    <label class="search-label">Forwarded From:</label>
+                    <input
+                        type="text"
+                        name="forward_from"
+                        placeholder="Name or username"
+                        value="{{ search_forward_from }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 8px;">
+                    <label class="search-label">Reviewed By:</label>
+                    <input
+                        type="text"
+                        name="reviewed_by"
+                        placeholder="e.g. nik or prdp"
+                        value="{{ search_reviewed_by }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 8px;">
+                    <label class="search-label">Status:</label>
+                    <select name="status" class="search-input">
+                        <option value=""   {% if search_status.is_empty() %}selected{% endif %}>All (accepted + rejected)</option>
+                        <option value="accepted" {% if search_status == "accepted" %}selected{% endif %}>Accepted only</option>
+                        <option value="rejected" {% if search_status == "rejected" %}selected{% endif %}>Rejected only</option>
+                    </select>
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 8px;">
+                    <label class="search-label">File Size (MB):</label>
+                    <div class="size-range-inputs">
+                        <input type="number" name="size_min" min="0" max="4200" step="10"
+                               value="{{ search_size_min }}" placeholder="Min" class="search-input">
+                        <span class="range-sep">–</span>
+                        <input type="number" name="size_max" min="0" max="4200" step="10"
+                               value="{{ search_size_max }}" placeholder="Max" class="search-input">
+                    </div>
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 8px;">
+                    <label class="search-label">Added Date (IST):</label>
+                    <div class="date-range-inputs">
+                        <input type="date" name="date_from" id="dateFrom" value="{{ search_date_from }}" class="search-input">
+                        <span class="date-range-sep">to</span>
+                        <input type="date" name="date_to" id="dateTo" value="{{ search_date_to }}" class="search-input">
+                    </div>
+                    <div class="date-quick-buttons">
+                        <button type="button" class="btn-date-preset" onclick="applyDatePreset('today')">Today</button>
+                        <button type="button" class="btn-date-preset" onclick="applyDatePreset('week')">This Week</button>
+                        <button type="button" class="btn-date-preset" onclick="applyDatePreset('month')">This Month</button>
+                    </div>
+                </div>
+
+                <div class="search-input-group" style="margin-bottom: 8px;">
+                    <label class="search-label">Telegram File ID:</label>
+                    <input
+                        type="text"
+                        name="file_id"
+                        placeholder="Numeric file id"
+                        value="{{ search_file_id }}"
+                        class="search-input"
+                    >
+                </div>
+
+                <button type="submit" class="btn btn-search" style="width: 100%;">🔍 Search</button>
+                <input type="hidden" name="page_size" value="{{ page_size }}">
+            </form>
+
+            {% if let Some(s) = stats %}
+            <div class="search-active" style="margin-top: 15px;">
+                {% if !search_user_id.is_empty() %}
+                    {% if s.is_exclusion %}
+                    <span class="search-badge search-badge-exclude">Excluding User {{ s.search_user_id }}</span>
+                    {% else %}
+                    <span class="search-badge search-badge-include">User {{ search_user_id }}</span>
+                    {% endif %}
+                {% endif %}
+                {% if !search_bot_id.is_empty() %}
+                    <span class="search-badge search-badge-bot">🤖 Bot {{ search_bot_id }}</span>
+                {% endif %}
+                {% if !search_file_name.is_empty() %}
+                    <span class="search-badge search-badge-include">"{{ search_file_name }}"</span>
+                {% endif %}
+                {% if !search_forward_from.is_empty() %}
+                    <span class="search-badge search-badge-forward">👤 "{{ search_forward_from }}"</span>
+                {% endif %}
+                {% if !search_reviewed_by.is_empty() %}
+                    <span class="search-badge search-badge-reviewer">🙋 {{ search_reviewed_by }}</span>
+                {% endif %}
+                {% if search_status == "accepted" %}
+                    <span class="search-badge search-badge-accepted-filter">✓ Accepted</span>
+                {% else if search_status == "rejected" %}
+                    <span class="search-badge search-badge-rejected-filter">✗ Rejected</span>
+                {% endif %}
+                {% if size_filter_active %}
+                    <span class="search-badge search-badge-size">📏 {{ search_size_min }}–{{ search_size_max }} MB</span>
+                {% endif %}
+                {% if date_filter_active %}
+                    <span class="search-badge search-badge-date">📅
+                    {% if !search_date_from.is_empty() && !search_date_to.is_empty() %}
+                        {{ search_date_from }} → {{ search_date_to }}
+                    {% else if !search_date_from.is_empty() %}
+                        From {{ search_date_from }}
+                    {% else %}
+                        Until {{ search_date_to }}
+                    {% endif %}
+                    </span>
+                {% endif %}
+                {% if !search_file_id.is_empty() %}
+                    <span class="search-badge search-badge-id">🆔 {{ search_file_id }}</span>
+                {% endif %}
+                <a href="{{ crate::BASE_PATH }}/done-tgfs" class="btn btn-clear">Clear All</a>
+            </div>
+            {% endif %}
+        </div>
+    </aside>
+
+    <!-- Center Content -->
+    <main class="review-main">
+        <div class="review-container">
+            <h2>{{ page_heading }}</h2>
+
+            <div class="page-size-toolbar">
+                <label for="pageSizeSelect">Show:</label>
+                <select id="pageSizeSelect" class="search-input" onchange="changePageSize(this.value)">
+                    <option value="5" {% if page_size == 5 %}selected{% endif %}>5</option>
+                    <option value="10" {% if page_size == 10 %}selected{% endif %}>10</option>
+                    <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                </select>
+                <span>per page</span>
+            </div>
+
+            {% if !files.is_empty() %}
+            <div class="review-info">
+                <p>Showing {{ files.len() }} reviewed file(s). Labels indicate the decision made by the reviewer.</p>
+            </div>
+
+            <div id="files-container">
+                {% for file in files %}
+                <div class="file-card {% if file.is_restricted %}file-card-rejected{% else %}file-card-accepted{% endif %}">
+                    <div class="file-header">
+                        <h3>
+                            <span class="file-index">{{ file.index }}.</span>
+                            <span class="filename-done">{{ file.file_name }}</span>
+                        </h3>
+                        <div class="file-id-row">
+                            <div class="file-id">File ID: {{ file.file_id }} &middot; Bot: {{ file.bot_id }}</div>
+                            <div class="file-preview-btns">
+                                <a href="{{ file.dl_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-dl">⬇ DL</a>
+                                <a href="{{ file.watch_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-watch">▶ Watch</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="file-details">
+                        <div class="detail-row-pair">
+                            <div class="detail-row">
+                                <span class="label">User ID:</span>
+                                <span class="value">{{ file.user_id }}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">Added:</span>
+                                <span class="value">{{ file.added_at }}</span>
+                            </div>
+                        </div>
+                        <div class="detail-row-pair">
+                            <div class="detail-row">
+                                <span class="label">MIME:</span>
+                                <span class="value">{{ file.mime_type }}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="label">Size:</span>
+                                <span class="value">{{ file.file_size }}</span>
+                            </div>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Reviewed By:</span>
+                            <span class="value">{{ file.reviewed_by }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Reviewed At:</span>
+                            <span class="value">{{ file.reviewed_at }}</span>
+                        </div>
+
+                        {% if file.has_forward_info %}
+                        <div class="forward-info">
+                            <hr>
+                            <strong>Forward Information:</strong>
+                            {% if !file.username.is_empty() %}
+                            <div class="detail-row">
+                                <span class="label">Username:</span>
+                                <span class="value">@{{ file.username }}</span>
+                            </div>
+                            {% endif %}
+                            {% if !file.forward_name.is_empty() %}
+                            <div class="detail-row">
+                                <span class="label">Fwd Name:</span>
+                                <span class="value">{{ file.forward_name }}</span>
+                            </div>
+                            {% endif %}
+                            {% if !file.forward_username.is_empty() %}
+                            <div class="detail-row">
+                                <span class="label">Fwd Username:</span>
+                                <span class="value">@{{ file.forward_username }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="file-status-label">
+                        {% if file.is_restricted %}
+                        <span class="status-badge status-rejected">✗ Rejected</span>
+                        {% else %}
+                        <span class="status-badge status-accepted">✓ Accepted</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div class="pagination">
+                {% for p in pages %}
+                <a href="{{ p.href }}" class="page-btn {% if p.active %}page-btn-active{% endif %}">{{ p.number }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="no-files">
+                <p>📭 No reviewed files found matching your search.</p>
+                <a href="{{ crate::BASE_PATH }}/done-tgfs" class="btn btn-primary">Clear Search</a>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- Right Sidebar - Stats -->
+    <aside class="right-sidebar">
+        {% if let Some(s) = stats %}
+        <div class="sidebar-card">
+            {% if !search_user_id.is_empty() %}
+                {% if s.is_exclusion %}
+                <h3>🚫 Excluded User Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display user-id-excluded">Excluding: {{ s.search_user_id }}</div>
+                </div>
+                {% else %}
+                <h3>📊 User Statistics</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display">User ID: {{ s.search_user_id }}</div>
+                </div>
+                {% endif %}
+            {% else if !search_bot_id.is_empty() %}
+                <h3>🤖 Bot Statistics</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        Bot ID: {{ s.search_bot_id }}
+                    </div>
+                </div>
+            {% else if !search_file_name.is_empty() %}
+                <h3>📂 File Search Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        "{{ s.search_file_name }}"
+                    </div>
+                </div>
+            {% else if s.size_filter_active %}
+                <h3>📏 Size Range Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        {{ s.search_size_min }}–{{ s.search_size_max }} MB
+                    </div>
+                </div>
+            {% else if s.date_filter_active %}
+                <h3>📅 Date Range Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        {% if !s.search_date_from.is_empty() && !s.search_date_to.is_empty() %}
+                        {{ s.search_date_from }} → {{ s.search_date_to }}
+                        {% else if !s.search_date_from.is_empty() %}
+                        From {{ s.search_date_from }}
+                        {% else %}
+                        Until {{ s.search_date_to }}
+                        {% endif %}
+                    </div>
+                </div>
+            {% else if !search_reviewed_by.is_empty() %}
+                <h3>🙋 Reviewer Stats</h3>
+                <div class="user-stats-header">
+                    <div class="user-id-display" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: #065f46;">
+                        {{ s.search_reviewed_by }}
+                    </div>
+                </div>
+            {% else %}
+                <h3>📊 Search Statistics</h3>
+            {% endif %}
+
+            <div class="user-stats-grid">
+                <div class="user-stat-box stat-total">
+                    <div class="user-stat-icon">📁</div>
+                    <div class="user-stat-value">{{ s.total_fmt }}</div>
+                    <div class="user-stat-label">Total Files</div>
+                </div>
+                <div class="user-stat-box stat-accepted">
+                    <div class="user-stat-icon">✓</div>
+                    <div class="user-stat-value">{{ s.accepted_fmt }}</div>
+                    <div class="user-stat-label">Accepted</div>
+                </div>
+                <div class="user-stat-box stat-rejected">
+                    <div class="user-stat-icon">✗</div>
+                    <div class="user-stat-value">{{ s.rejected_fmt }}</div>
+                    <div class="user-stat-label">Rejected</div>
+                </div>
+            </div>
+
+            <div class="user-metrics">
+                <div class="user-metric-item">
+                    <span class="metric-name">Acceptance Rate:</span>
+                    <span class="metric-value-green">{{ s.acceptance_rate_fmt }}%</span>
+                </div>
+                <div class="user-metric-item">
+                    <span class="metric-name">Rejection Rate:</span>
+                    <span class="metric-value-red">{{ s.rejection_rate_fmt }}%</span>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="sidebar-card">
+            <h3>📊 Search Statistics</h3>
+            <div class="sidebar-placeholder">
+                <p>🔍 Use search to see detailed statistics</p>
+                <ul>
+                    <li><strong>User ID:</strong> User-specific stats</li>
+                    <li><strong>Bot ID:</strong> Bot-specific stats</li>
+                    <li><strong>Reviewed By:</strong> Reviewer stats</li>
+                    <li><strong>Status:</strong> Filter accepted / rejected</li>
+                    <li>Total / Accepted / Rejected counts</li>
+                    <li>Acceptance & rejection rates</li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </aside>
+</div>
+
+<script>
+    // Computes the requested preset range as IST calendar dates and re-submits the search form.
+    function applyDatePreset(preset) {
+        const istToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+        const [y, m, d] = istToday.split('-').map(Number);
+        const today = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+        let from = new Date(today);
+        let to = new Date(today);
+
+        if (preset === 'week') {
+            const dow = today.getUTCDay();
+            const diffToMonday = dow === 0 ? 6 : dow - 1;
+            from.setUTCDate(today.getUTCDate() - diffToMonday);
+            to = new Date(from);
+            to.setUTCDate(from.getUTCDate() + 6);
+        } else if (preset === 'month') {
+            from = new Date(Date.UTC(y, m - 1, 1, 12, 0, 0));
+            to = new Date(Date.UTC(y, m, 0, 12, 0, 0));
+        }
+
+        const fmt = dt => `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+        const dateFromEl = document.getElementById('dateFrom');
+        const dateToEl = document.getElementById('dateTo');
+        dateFromEl.value = fmt(from);
+        dateToEl.value = fmt(to);
+        dateFromEl.closest('form').submit();
+    }
+
+    // Preserves current search/filter query params, resets to page 1 since page count changes with size.
+    function changePageSize(value) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('page_size', value);
+        params.set('page', '1');
+        window.location.search = params.toString();
+    }
+</script>
+{% endblock %}

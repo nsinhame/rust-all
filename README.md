@@ -12,11 +12,22 @@ shared secret (see "Access gate" below) — e.g. `https://your-host/link-review?
 Functionally equivalent to the original app:
 
 - Session-based login for reviewers configured via `LINK_REVIEW_USER{n}` / `LINK_REVIEW_USER{n}_PASS` env vars.
-- `/link-review/review` — 10 random unreviewed files with search (user id include/exclude, file name, forwarded-from, size range, Mongo `_id`) and live stats sidebar.
+- `/link-review/review-plgb` — 10 random unreviewed files with search (user id include/exclude, file name, forwarded-from, size range, Mongo `_id`) and live stats sidebar.
 - `/link-review/submit` — bulk accept/reject, optional rename, optional "special hash" tagging.
-- `/link-review/done` — paginated list of reviewed files with the same filters plus reviewer/status.
-- `/link-review/stats` — dashboard with global + per-reviewer comparison (top 2 configured users).
-- `/link-review/instructions` — static help page (search tips + 50 regex rename examples).
+- `/link-review/done-plgb` — paginated list of reviewed files with the same filters plus reviewer/status.
+- `/link-review/stats-plgb` — dashboard with global + per-reviewer comparison (top 2 configured users).
+- `/link-review/instructions-plgb` — static help page (search tips + 50 regex rename examples).
+
+A second, independent review section covers the **TGFS** (telethon-plgb) multi-bot/multi-database
+tgfilestream bot, joining its separate "index" (`user_files`) and "blob" (`files`) Mongo clusters
+in-process since they can't be `$lookup`-joined server-side (see
+`/memories/repo/tgfs-review-integration.md` for the full architecture writeup):
+
+- `/link-review/review-tgfs` — random pending (never-reviewed) links, filterable by user id, **bot id**, file name, forwarded-from, size, date, and Telegram file id. Every card shows which bot generated it.
+- `/link-review/submit-tgfs` — bulk accept (unrestrict)/reject (restrict)/delete/delete+warn, optional rename (kept in sync on both the index and blob doc). Delete+warn increments the uploader's `warns` count (banning is handled separately by the telethon-plgb bot itself, not by this tool).
+- `/link-review/done-tgfs` — paginated list of already-reviewed links with the same filters plus reviewer/status.
+- `/link-review/stats-tgfs` — dashboard with global + per-reviewer comparison, plus a per-bot "links generated" breakdown.
+- `/link-review/instructions-tgfs` — static help page covering the multi-bot/multi-DB differences from PLGB.
 
 ## Project layout
 
@@ -27,17 +38,24 @@ Everything below lives at the repository root:
 ├── Cargo.toml
 ├── Dockerfile
 ├── src/
-│   ├── main.rs          # entrypoint, router, default users, index creation
-│   ├── state.rs          # AppState (Mongo collections, cookie key)
-│   ├── auth.rs            # session/flash cookies, password hashing
-│   ├── models.rs          # BSON helpers + view models used by templates
-│   ├── query_filters.rs   # shared search-filter parsing (review/done)
-│   ├── util.rs            # formatting helpers, template render helper
+│   ├── main.rs               # entrypoint, router, default users, index creation, TGFS Mongo connect
+│   ├── state.rs               # AppState (Mongo collections, cookie key) + TgfsState
+│   ├── auth.rs                 # session/flash cookies, password hashing
+│   ├── models.rs               # BSON helpers + view models used by PLGB templates
+│   ├── query_filters.rs        # shared search-filter parsing (PLGB review/done)
+│   ├── util.rs                 # formatting helpers, template render helper
+│   ├── tgfs_models.rs           # TGFS view models (index+blob doc join into one card)
+│   ├── tgfs_query_filters.rs    # TGFS search-filter parsing (adds bot id, file id)
+│   ├── tgfs_join.rs              # cross-cluster index/blob join + sampling helpers
+│   ├── tgfs_token.rs              # HMAC dl/watch link signing (matches the Python bot)
 │   └── handlers/
-│       ├── pages.rs        # /, /login, /logout, /instructions
-│       ├── review.rs       # /review, /submit
-│       ├── done.rs         # /done
-│       └── stats.rs        # /stats
+│       ├── pages.rs          # /, /login, /logout, /instructions-plgb, /instructions-tgfs
+│       ├── review.rs         # /review-plgb, /submit
+│       ├── done.rs           # /done-plgb
+│       ├── stats.rs          # /stats-plgb
+│       ├── tgfs_review.rs    # /review-tgfs, /submit-tgfs
+│       ├── tgfs_done.rs      # /done-tgfs
+│       └── tgfs_stats.rs     # /stats-tgfs
 ├── templates/             # Askama (Jinja-like) templates, compiled into the binary
 └── static/style.css       # unchanged from the original app
 ```
@@ -51,7 +69,7 @@ Requires Rust 1.88+ (`rustup update`) and a reachable MongoDB instance.
 
 ```bash
 cp .env.example .env
-# edit .env with your MONGODB_URI and a real ACCESS_KEY value
+# edit .env with your PLGB_MONGODB_URI and a real ACCESS_KEY value
 
 cargo run
 ```
@@ -91,14 +109,23 @@ a reviewer, edit the env vars and restart — no database migration needed.
 1. Push this repo to GitHub (the old `link-allow-page/` folder is gitignored and won't be included).
 2. In Koyeb, create a new **Web Service** from that repo, build method **Dockerfile**.
 3. Set these environment variables/secrets in the Koyeb service:
-   - `MONGODB_URI` — your MongoDB Atlas (or other) connection string.
+   - `PLGB_MONGODB_URI` — your MongoDB Atlas (or other) connection string for the PLGB (WebStreamer) bot.
    - `ACCESS_KEY` — a long random string (`openssl rand -hex 32`); this is the `?key=` value
      visitors must supply, and it also encrypts/signs session & flash cookies.
    - `LINK_REVIEW_USER1` / `LINK_REVIEW_USER1_PASS` (and `_USER2`, `_USER3`, ... as needed) —
      reviewer login credentials, see "Reviewer accounts" above.
-   - `FQDN` — base domain used to build each file's DL/Watch links, e.g. `fcdn.example.com`
+   - `PLGB_FQDN` — base domain used to build each PLGB file's DL/Watch links, e.g. `fcdn.example.com`
      (no scheme/path); change this whenever the CDN host changes, no redeploy of code needed.
+   - `TGFS_MONGODB_URI` — the telethon-plgb bot's primary MongoDB connection string.
+   - `TGFS_MONGODB_DBNAME` — defaults to `TGFS`, matching the bot's own default.
+   - `TGFS_MONGODB_INDEX_URI1`, `TGFS_MONGODB_INDEX_URI2`, ... — optional, only needed if the bot
+     is configured with more than one `MONGODB_INDEX_URI*` cluster; falls back to the primary URI.
+   - `TGFS_MONGODB_BLOB_URI1`, `TGFS_MONGODB_BLOB_URI2`, ... — same, for `MONGODB_BLOB_URI*` clusters.
+   - `TGFS_PUBLIC_URL` — the bot's own `PUBLIC_URL` (e.g. `https://tgfs.example.com`), used to build
+     working signed DL/Watch links.
    - Koyeb automatically injects `PORT`; the app already reads it.
+   - Note: the TGFS bot must have run at least once before this app starts, so it has generated
+     its `link.secret` in `app_config` — this app reads (but never creates) that secret.
 4. Pick the free instance size (1 instance, smallest plan) and deploy.
 5. Once live, open `https://<your-app>.koyeb.app/link-review?key=<ACCESS_KEY>` and log in with
    one of the configured `LINK_REVIEW_USER{n}` / `LINK_REVIEW_USER{n}_PASS` pairs.

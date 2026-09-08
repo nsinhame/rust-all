@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}TGFS Instructions{% endblock %}
+
+{% block content %}
+<div class="instructions-container">
+    <h2>📖 TGFS Instructions &amp; Help</h2>
+
+    <div class="instructions-grid">
+
+        <!-- Architecture Notes Section -->
+        <section class="instr-section" style="grid-column: 1 / -1;">
+            <h3>🧩 How TGFS Is Different From PLGB</h3>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">🤖</div>
+                <div class="instr-card-body">
+                    <h4>Multi-bot</h4>
+                    <p>The TGFS bot can run several Telegram bot tokens at once (a main bot plus extra "worker" bots).
+                    Every link is tagged with the numeric <strong>Bot ID</strong> of whichever bot generated it, and every
+                    entry on the Review/Done pages shows its Bot ID so you know which bot's user asked for it. Use the
+                    <strong>Bot ID</strong> search field to filter by a single bot (or exclude one with a negative id, e.g. <code>-123</code>).</p>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">🗄️</div>
+                <div class="instr-card-body">
+                    <h4>Multi-database (index/blob split)</h4>
+                    <p>TGFS can spread its data across several MongoDB deployments ("clusters"). Each uploaded file's
+                    metadata (name, size, MIME type, and whether it's <strong>restricted</strong>) lives in a "blob" cluster,
+                    while each user's individual link to that file lives separately in an "index" cluster. A single physical
+                    file can be linked by more than one user. This review tool automatically joins both sides together for
+                    every entry you see; <strong>Accept/Reject</strong> decisions apply to the underlying file (so they affect
+                    every link to it), while <strong>Delete</strong> only removes the specific link you deleted — the
+                    underlying file is only cleaned up once no link references it anymore.</p>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">🔗</div>
+                <div class="instr-card-body">
+                    <h4>Download / Watch links</h4>
+                    <p>Unlike PLGB's plain <code>/dl/&lt;id&gt;/&lt;name&gt;</code> links, TGFS signs every link with an
+                    HMAC secret shared with the running bot, so the <strong>DL</strong>/<strong>Watch</strong> buttons on
+                    each card always produce a valid, working link against the live server.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Search Filters Section -->
+        <section class="instr-section">
+            <h3>🔍 Search Filters</h3>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">🎯</div>
+                <div class="instr-card-body">
+                    <h4>User ID / Bot ID Search</h4>
+                    <ul>
+                        <li><strong>Positive ID</strong> (e.g. <code>123</code>): Show only entries for that user/bot</li>
+                        <li><strong>Negative ID</strong> (e.g. <code>-123</code>): Exclude that user/bot, show everyone else</li>
+                        <li>Leave empty to search across all users/bots</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">📂</div>
+                <div class="instr-card-body">
+                    <h4>File Name Search</h4>
+                    <ul>
+                        <li>Enter one or more keywords</li>
+                        <li><strong>ALL words</strong> must be present in the file name (AND logic)</li>
+                        <li>Case-insensitive partial match</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">👤</div>
+                <div class="instr-card-body">
+                    <h4>Forwarded From</h4>
+                    <ul>
+                        <li>Searches the forwarder's name and username</li>
+                        <li>Matches <strong>either</strong> field (OR logic)</li>
+                        <li>Case-insensitive partial match</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">📏</div>
+                <div class="instr-card-body">
+                    <h4>File Size Range</h4>
+                    <ul>
+                        <li>Set a minimum and maximum size in MB</li>
+                        <li>Range: <strong>0 – 4200 MB</strong></li>
+                        <li>Leaving it at full range (0–4200) disables this filter</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">🆔</div>
+                <div class="instr-card-body">
+                    <h4>Telegram File ID</h4>
+                    <p>Search for the exact numeric Telegram file id (shown as "File ID" on every card) instead of a
+                    Mongo document hash.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Statistics Panel Section -->
+        <section class="instr-section">
+            <h3>📊 Search Statistics Panel</h3>
+            <p class="instr-intro">When you apply any search filter, a statistics panel appears on the right side of the Review page. It shows:</p>
+            <div class="instr-card">
+                <div class="instr-card-icon">📈</div>
+                <div class="instr-card-body">
+                    <ul>
+                        <li>Total matching links</li>
+                        <li>Pending reviews remaining</li>
+                        <li>Accepted / Rejected counts</li>
+                        <li>Review progress percentage</li>
+                        <li>Acceptance &amp; rejection rates</li>
+                    </ul>
+                    <p style="color:#888;font-size:0.85em;">For very broad filters (e.g. no filter at all), these counts
+                    are capped at a large working-set size per database cluster rather than scanning every document, to
+                    keep the page fast — this only matters on very large deployments.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Review Workflow Section -->
+        <section class="instr-section">
+            <h3>✅ Review Workflow</h3>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">1️⃣</div>
+                <div class="instr-card-body">
+                    <h4>Load files</h4>
+                    <p>Open the <a href="{{ crate::BASE_PATH }}/review-tgfs">Review</a> page. Without any filter it loads
+                    random pending (never-reviewed) links. Use the Advanced Search to narrow down by user, bot, name, size or date.</p>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">2️⃣</div>
+                <div class="instr-card-body">
+                    <h4>Preview before deciding</h4>
+                    <p>Each card has <strong>DL</strong> (download) and <strong>Watch</strong> buttons that build a working
+                    signed link against the live TGFS server.</p>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">3️⃣</div>
+                <div class="instr-card-body">
+                    <h4>Rename if needed</h4>
+                    <p>Click the file name box at the top of any card to edit it. The new name is saved to both the file's
+                    record and its link on submission.</p>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">4️⃣</div>
+                <div class="instr-card-body">
+                    <h4>Accept, Reject, Delete, or Delete &amp; Warn</h4>
+                    <ul>
+                        <li><strong>Accept</strong> — marks the file as unrestricted (downloadable).</li>
+                        <li><strong>Reject</strong> — restricts the file (downloads return "File is restricted").</li>
+                        <li><strong>Delete</strong> — permanently removes this link. The underlying file is only deleted
+                        once no other link references it.</li>
+                        <li><strong>Delete &amp; Warn</strong> — same as Delete, plus increments the uploader's warn count.
+                        Banning at a warn threshold is handled by the TGFS bot itself, not by this tool.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instr-card">
+                <div class="instr-card-icon">5️⃣</div>
+                <div class="instr-card-body">
+                    <h4>Submit</h4>
+                    <p>Click <strong>Review Summary &amp; Submit</strong> to preview all your decisions (including any renames), then confirm to write them to the database.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Regex Rename Section -->
+        <section class="instr-section" style="grid-column: 1 / -1;">
+            <h3>&#x270F;&#xFE0F; Regex Rename</h3>
+            <p style="color:#555;">
+                The Review page's <strong>Regex Rename</strong> box works the same way as on the PLGB Review page — enter a
+                Pattern (what to find) and Replace with (what to put instead) to batch-rename every visible file at once.
+                See the <a href="{{ crate::BASE_PATH }}/instructions-plgb">PLGB Instructions</a> page for a full cheat-sheet of examples.
+            </p>
+        </section>
+    </div>
+</div>
+{% endblock %}

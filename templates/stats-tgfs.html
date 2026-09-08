@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}TGFS Statistics{% endblock %}
+
+{% block content %}
+<div class="stats-container">
+    <h2>TGFS Review Statistics Dashboard</h2>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+        <div class="stat-card stat-card-blue">
+            <div class="stat-icon">📁</div>
+            <div class="stat-value">{{ total_fmt }}</div>
+            <div class="stat-label">Total Files</div>
+        </div>
+
+        <div class="stat-card stat-card-orange">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-value">{{ pending_fmt }}</div>
+            <div class="stat-label">Pending Review</div>
+        </div>
+
+        <div class="stat-card stat-accept">
+            <div class="stat-icon">✓</div>
+            <div class="stat-value">{{ public_fmt }}</div>
+            <div class="stat-label">Accepted</div>
+        </div>
+
+        <div class="stat-card stat-reject">
+            <div class="stat-icon">✗</div>
+            <div class="stat-value">{{ private_fmt }}</div>
+            <div class="stat-label">Rejected</div>
+        </div>
+
+        <div class="stat-card stat-card-teal">
+            <div class="stat-icon">📊</div>
+            <div class="stat-value">{{ reviewed_fmt }}</div>
+            <div class="stat-label">Total Reviewed</div>
+        </div>
+
+        <div class="stat-card stat-card-indigo">
+            <div class="stat-icon">📈</div>
+            <div class="stat-value">{{ progress_pct_fmt }}%</div>
+            <div class="stat-label">Progress</div>
+        </div>
+    </div>
+
+    <!-- Visual Analytics Section -->
+    <div class="analytics-section">
+        <h3>Visual Analytics</h3>
+
+        <!-- Progress Bar -->
+        <div class="chart-container">
+            <h4>Overall Progress</h4>
+            <div class="progress-bar-container">
+                <div class="progress-labels">
+                    <span>Reviewed: {{ reviewed_fmt }}</span>
+                    <span>Pending: {{ pending_fmt }}</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ progress_pct }}%">
+                        <span class="progress-text">{{ progress_pct_fmt }}%</span>
+                    </div>
+                </div>
+                <div class="progress-total">
+                    Total: {{ total_fmt }} files
+                </div>
+            </div>
+        </div>
+
+        <!-- Review Distribution Bar Chart -->
+        <div class="chart-container">
+            <h4>Review Distribution</h4>
+            <div class="bar-chart">
+                <div class="bar-item">
+                    <div class="bar-label">Accepted</div>
+                    <div class="bar-wrapper">
+                        <div class="bar bar-accept" style="width: {{ bar_accept_pct }}%">
+                            <span class="bar-value">{{ public_fmt }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bar-item">
+                    <div class="bar-label">Rejected</div>
+                    <div class="bar-wrapper">
+                        <div class="bar bar-reject" style="width: {{ bar_reject_pct }}%">
+                            <span class="bar-value">{{ private_fmt }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bar-item">
+                    <div class="bar-label">Pending</div>
+                    <div class="bar-wrapper">
+                        <div class="bar bar-pending" style="width: {{ bar_pending_pct }}%">
+                            <span class="bar-value">{{ pending_fmt }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pie Chart / Donut Chart -->
+        <div class="chart-container">
+            <h4>Review Status Distribution</h4>
+            <div class="pie-chart-container">
+                {% if has_reviewed %}
+                    <div class="pie-chart" style="background: conic-gradient(#10b981 0deg {{ accept_angle }}deg, #ef4444 {{ accept_angle }}deg 360deg);">
+                {% else %}
+                    <div class="pie-chart" style="background: #e5e7eb;">
+                {% endif %}
+                    <div class="pie-center">
+                        <div class="pie-center-value">{{ total_reviewed_fmt }}</div>
+                        <div class="pie-center-label">Reviewed</div>
+                    </div>
+                </div>
+                <div class="pie-legend">
+                    <div class="legend-item">
+                        <span class="legend-color legend-accept"></span>
+                        <span class="legend-text">Accepted: {{ public_fmt }}</span>
+                        <span class="legend-percent">({{ pie_accept_pct_fmt }}%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color legend-reject"></span>
+                        <span class="legend-text">Rejected: {{ private_fmt }}</span>
+                        <span class="legend-percent">({{ pie_reject_pct_fmt }}%)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Metrics -->
+        <div class="chart-container">
+            <h4>Key Metrics</h4>
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <div class="metric-icon">✓</div>
+                    <div class="metric-value">{{ acceptance_rate_fmt }}%</div>
+                    <div class="metric-label">Acceptance Rate</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-icon">✗</div>
+                    <div class="metric-value">{{ rejection_rate_fmt }}%</div>
+                    <div class="metric-label">Rejection Rate</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-icon">📊</div>
+                    <div class="metric-value">{{ ratio_str }}</div>
+                    <div class="metric-label">Accept/Reject Ratio</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-icon">⏳</div>
+                    <div class="metric-value">{{ sessions_left_fmt }}</div>
+                    <div class="metric-label">Review Sessions Left</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-Bot Breakdown -->
+    <div class="reviewer-comparison-section">
+        <h3>Per-Bot Breakdown</h3>
+        <div class="chart-container">
+            <h4>Links Generated per Bot</h4>
+            {% if !bots.is_empty() %}
+            <div class="comparison-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Bot ID</th>
+                            <th>Links Generated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in bots %}
+                        <tr>
+                            <td>{{ b.bot_id }}</td>
+                            <td>{{ b.count_fmt }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p>No bot activity recorded yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Reviewer Comparison Section -->
+    <div class="reviewer-comparison-section">
+        <h3>Reviewer Comparison: Nik vs Prdp</h3>
+
+        <!-- Reviewer Stats Cards -->
+        <div class="reviewer-cards">
+            <div class="reviewer-card reviewer-nik">
+                <div class="reviewer-header">
+                    <div class="reviewer-avatar">👤</div>
+                    <div class="reviewer-name">Nik</div>
+                </div>
+                <div class="reviewer-stats">
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ nik.total_reviewed_fmt }}</div>
+                        <div class="reviewer-stat-label">Total Reviewed</div>
+                    </div>
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ nik.accepted_fmt }}</div>
+                        <div class="reviewer-stat-label">Accepted</div>
+                    </div>
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ nik.rejected_fmt }}</div>
+                        <div class="reviewer-stat-label">Rejected</div>
+                    </div>
+                </div>
+                <div class="reviewer-metrics">
+                    <div class="reviewer-metric">
+                        <span class="metric-label-small">Acceptance Rate:</span>
+                        <span class="metric-value-small">{{ nik.acceptance_rate_fmt }}%</span>
+                    </div>
+                    <div class="reviewer-metric">
+                        <span class="metric-label-small">Contribution:</span>
+                        <span class="metric-value-small">{{ nik.contribution_fmt }}%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="reviewer-card reviewer-prdp">
+                <div class="reviewer-header">
+                    <div class="reviewer-avatar">👤</div>
+                    <div class="reviewer-name">Prdp</div>
+                </div>
+                <div class="reviewer-stats">
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ prdp.total_reviewed_fmt }}</div>
+                        <div class="reviewer-stat-label">Total Reviewed</div>
+                    </div>
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ prdp.accepted_fmt }}</div>
+                        <div class="reviewer-stat-label">Accepted</div>
+                    </div>
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ prdp.rejected_fmt }}</div>
+                        <div class="reviewer-stat-label">Rejected</div>
+                    </div>
+                </div>
+                <div class="reviewer-metrics">
+                    <div class="reviewer-metric">
+                        <span class="metric-label-small">Acceptance Rate:</span>
+                        <span class="metric-value-small">{{ prdp.acceptance_rate_fmt }}%</span>
+                    </div>
+                    <div class="reviewer-metric">
+                        <span class="metric-label-small">Contribution:</span>
+                        <span class="metric-value-small">{{ prdp.contribution_fmt }}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Charts -->
+        <div class="comparison-charts">
+            <!-- Reviews Comparison -->
+            <div class="chart-container">
+                <h4>Total Reviews Comparison</h4>
+                <div class="comparison-bar-chart">
+                    <div class="comparison-bar-item">
+                        <div class="comparison-bar-label">
+                            <span class="reviewer-badge reviewer-badge-nik">Nik</span>
+                        </div>
+                        <div class="comparison-bar-wrapper">
+                            <div class="comparison-bar comparison-bar-nik" style="width: {{ nik_reviews_bar_pct }}%">
+                                <span class="comparison-bar-value">{{ nik.total_reviewed_fmt }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="comparison-bar-item">
+                        <div class="comparison-bar-label">
+                            <span class="reviewer-badge reviewer-badge-prdp">Prdp</span>
+                        </div>
+                        <div class="comparison-bar-wrapper">
+                            <div class="comparison-bar comparison-bar-prdp" style="width: {{ prdp_reviews_bar_pct }}%">
+                                <span class="comparison-bar-value">{{ prdp.total_reviewed_fmt }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Acceptance Rate Comparison -->
+            <div class="chart-container">
+                <h4>Acceptance Rate Comparison</h4>
+                <div class="comparison-bar-chart">
+                    <div class="comparison-bar-item">
+                        <div class="comparison-bar-label">
+                            <span class="reviewer-badge reviewer-badge-nik">Nik</span>
+                        </div>
+                        <div class="comparison-bar-wrapper">
+                            <div class="comparison-bar comparison-bar-nik" style="width: {{ nik_accept_rate }}%">
+                                <span class="comparison-bar-value">{{ nik.acceptance_rate_fmt }}%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="comparison-bar-item">
+                        <div class="comparison-bar-label">
+                            <span class="reviewer-badge reviewer-badge-prdp">Prdp</span>
+                        </div>
+                        <div class="comparison-bar-wrapper">
+                            <div class="comparison-bar comparison-bar-prdp" style="width: {{ prdp_accept_rate }}%">
+                                <span class="comparison-bar-value">{{ prdp.acceptance_rate_fmt }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="action-section">
+        {% if pending > 0 %}
+            <a href="{{ crate::BASE_PATH }}/review-tgfs" class="btn btn-primary btn-large">
+                Continue Reviewing ({{ pending_fmt }} pending)
+            </a>
+        {% else %}
+            <p class="success-message">🎉 All files have been reviewed!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

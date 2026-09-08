@@ -2,16 +2,20 @@ use askama::Template;
 use axum::extract::State;
 use axum::response::IntoResponse;
 use axum_extra::extract::cookie::PrivateCookieJar;
-use mongodb::bson::doc;
+use futures_util::TryStreamExt;
+use mongodb::bson::{doc, Document};
+use mongodb::Collection;
+use std::collections::HashMap;
 
 use crate::auth::{take_flash, AuthUser};
 use crate::models::{Flash, ReviewerStats};
 use crate::state::AppState;
+use crate::tgfs_models::TgfsBotBreakdown;
 use crate::util::{commas, fmt_pct1, pct, render};
 
 #[derive(Template)]
-#[template(path = "stats.html")]
-struct StatsTemplate {
+#[template(path = "stats-tgfs.html")]
+struct TgfsStatsTemplate {
     logged_in: bool,
     username: String,
     flashes: Vec<Flash>,
@@ -48,55 +52,32 @@ struct StatsTemplate {
     nik_accept_rate: f64,
     prdp_accept_rate: f64,
 
-    total_diff: i64,
-    total_diff_class: String,
-    accepted_diff: i64,
-    accepted_diff_class: String,
-    rejected_diff: i64,
-    rejected_diff_class: String,
-    rate_diff_fmt: String,
-    rate_diff_class: String,
+    bots: Vec<TgfsBotBreakdown>,
 
     show_plgb_nav: bool,
     show_tgfs_nav: bool,
 }
 
-fn diff_class(a: i64, b: i64) -> String {
-    if a > b {
-        "positive".to_string()
-    } else if a < b {
-        "negative".to_string()
-    } else {
-        String::new()
+async fn count_across(colls: &[Collection<Document>], filter: Document) -> i64 {
+    let mut total = 0i64;
+    for c in colls {
+        total += c.count_documents(filter.clone()).await.unwrap_or(0) as i64;
     }
+    total
 }
 
-fn diff_class_f64(a: f64, b: f64) -> String {
-    if a > b {
-        "positive".to_string()
-    } else if a < b {
-        "negative".to_string()
-    } else {
-        String::new()
-    }
-}
-
-async fn reviewer_stats(state: &AppState, name: &str, total_reviewed_all: i64) -> ReviewerStats {
-    let total_reviewed = state
-        .files
-        .count_documents(doc! { "reviewed_by": name })
-        .await
-        .unwrap_or(0) as i64;
-    let accepted = state
-        .files
-        .count_documents(doc! { "reviewed_by": name, "is_public": true })
-        .await
-        .unwrap_or(0) as i64;
-    let rejected = state
-        .files
-        .count_documents(doc! { "reviewed_by": name, "is_public": false })
-        .await
-        .unwrap_or(0) as i64;
+async fn reviewer_stats(blob_colls: &[Collection<Document>], name: &str, total_reviewed_all: i64) -> ReviewerStats {
+    let total_reviewed = count_across(blob_colls, doc! { "reviewed_by": name }).await;
+    let accepted = count_across(
+        blob_colls,
+        doc! { "reviewed_by": name, "is_restricted": false },
+    )
+    .await;
+    let rejected = count_across(
+        blob_colls,
+        doc! { "reviewed_by": name, "is_restricted": true },
+    )
+    .await;
 
     ReviewerStats {
         total_reviewed_fmt: commas(total_reviewed),
@@ -105,6 +86,37 @@ async fn reviewer_stats(state: &AppState, name: &str, total_reviewed_all: i64) -
         acceptance_rate_fmt: fmt_pct1(accepted, total_reviewed),
         contribution_fmt: fmt_pct1(total_reviewed, total_reviewed_all),
     }
+}
+
+/// Total `user_files` ("links generated") per bot, across every index cluster.
+/// Index-level only (no blob join needed), so it's cheap even at scale.
+async fn bot_breakdown(index_colls: &[Collection<Document>]) -> Vec<TgfsBotBreakdown> {
+    let mut counts: HashMap<i64, i64> = HashMap::new();
+    for coll in index_colls {
+        let pipeline = vec![doc! { "$group": { "_id": "$bot_id", "count": { "$sum": 1 } } }];
+        let cursor = match coll.aggregate(pipeline).await {
+            Ok(c) => c,
+            Err(err) => {
+                tracing::error!("tgfs bot breakdown aggregate error: {err}");
+                continue;
+            }
+        };
+        let docs: Vec<Document> = cursor.try_collect().await.unwrap_or_default();
+        for doc in docs {
+            if let Some(bot_id) = crate::models::get_i64(&doc, "_id") {
+                let count = crate::models::get_i64(&doc, "count").unwrap_or(0);
+                *counts.entry(bot_id).or_insert(0) += count;
+            }
+        }
+    }
+    let mut rows: Vec<(i64, i64)> = counts.into_iter().collect();
+    rows.sort_by_key(|(bot_id, _)| *bot_id);
+    rows.into_iter()
+        .map(|(bot_id, count)| TgfsBotBreakdown {
+            bot_id: bot_id.to_string(),
+            count_fmt: commas(count),
+        })
+        .collect()
 }
 
 pub async fn stats(
@@ -117,62 +129,29 @@ pub async fn stats(
         .map(|(category, message)| vec![Flash { category, message }])
         .unwrap_or_default();
 
-    let total = state.files.count_documents(doc! {}).await.unwrap_or(0) as i64;
-    let reviewed = state
-        .files
-        .count_documents(doc! { "is_public": { "$exists": true } })
-        .await
-        .unwrap_or(0) as i64;
-    let pending = state
-        .files
-        .count_documents(doc! { "is_public": { "$exists": false } })
-        .await
-        .unwrap_or(0) as i64;
-    let public = state
-        .files
-        .count_documents(doc! { "is_public": true })
-        .await
-        .unwrap_or(0) as i64;
-    let private = state
-        .files
-        .count_documents(doc! { "is_public": false })
-        .await
-        .unwrap_or(0) as i64;
+    let blob_colls = &state.tgfs.blob_colls;
+    let index_colls = &state.tgfs.index_colls;
 
-    let nik = reviewer_stats(&state, "nik", reviewed).await;
-    let prdp = reviewer_stats(&state, "prdp", reviewed).await;
+    let total = count_across(blob_colls, doc! {}).await;
+    let reviewed = count_across(blob_colls, doc! { "reviewed_at": { "$exists": true } }).await;
+    let pending = total - reviewed;
+    let public = count_across(
+        blob_colls,
+        doc! { "reviewed_at": { "$exists": true }, "is_restricted": false },
+    )
+    .await;
+    let private = count_across(
+        blob_colls,
+        doc! { "reviewed_at": { "$exists": true }, "is_restricted": true },
+    )
+    .await;
 
-    // re-fetch the raw numeric totals needed for cross-reviewer comparisons
-    let nik_total = state
-        .files
-        .count_documents(doc! { "reviewed_by": "nik" })
-        .await
-        .unwrap_or(0) as i64;
-    let prdp_total = state
-        .files
-        .count_documents(doc! { "reviewed_by": "prdp" })
-        .await
-        .unwrap_or(0) as i64;
-    let nik_accepted = state
-        .files
-        .count_documents(doc! { "reviewed_by": "nik", "is_public": true })
-        .await
-        .unwrap_or(0) as i64;
-    let prdp_accepted = state
-        .files
-        .count_documents(doc! { "reviewed_by": "prdp", "is_public": true })
-        .await
-        .unwrap_or(0) as i64;
-    let nik_rejected = state
-        .files
-        .count_documents(doc! { "reviewed_by": "nik", "is_public": false })
-        .await
-        .unwrap_or(0) as i64;
-    let prdp_rejected = state
-        .files
-        .count_documents(doc! { "reviewed_by": "prdp", "is_public": false })
-        .await
-        .unwrap_or(0) as i64;
+    let nik = reviewer_stats(blob_colls, "nik", reviewed).await;
+    let prdp = reviewer_stats(blob_colls, "prdp", reviewed).await;
+    let nik_total = count_across(blob_colls, doc! { "reviewed_by": "nik" }).await;
+    let prdp_total = count_across(blob_colls, doc! { "reviewed_by": "prdp" }).await;
+    let nik_accepted = count_across(blob_colls, doc! { "reviewed_by": "nik", "is_restricted": false }).await;
+    let prdp_accepted = count_across(blob_colls, doc! { "reviewed_by": "prdp", "is_restricted": false }).await;
 
     let progress_pct = pct(reviewed, total);
     let max_val = public.max(private).max(pending).max(1);
@@ -206,7 +185,9 @@ pub async fn stats(
     let nik_accept_rate = pct(nik_accepted, nik_total);
     let prdp_accept_rate = pct(prdp_accepted, prdp_total);
 
-    let tmpl = StatsTemplate {
+    let bots = bot_breakdown(index_colls).await;
+
+    let tmpl = TgfsStatsTemplate {
         logged_in: true,
         username: session.username,
         flashes,
@@ -243,17 +224,10 @@ pub async fn stats(
         nik_accept_rate,
         prdp_accept_rate,
 
-        total_diff: nik_total - prdp_total,
-        total_diff_class: diff_class(nik_total, prdp_total),
-        accepted_diff: nik_accepted - prdp_accepted,
-        accepted_diff_class: diff_class(nik_accepted, prdp_accepted),
-        rejected_diff: nik_rejected - prdp_rejected,
-        rejected_diff_class: diff_class(nik_rejected, prdp_rejected),
-        rate_diff_fmt: format!("{:.1}", nik_accept_rate - prdp_accept_rate),
-        rate_diff_class: diff_class_f64(nik_accept_rate, prdp_accept_rate),
+        bots,
 
-        show_plgb_nav: true,
-        show_tgfs_nav: false,
+        show_plgb_nav: false,
+        show_tgfs_nav: true,
     };
 
     (jar, render(tmpl))

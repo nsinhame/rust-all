@@ -2,22 +2,27 @@ use askama::Template;
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;
 use axum_extra::extract::cookie::PrivateCookieJar;
-use futures_util::TryStreamExt;
-use mongodb::bson::{doc, Document};
+use mongodb::bson::{doc, Bson, Document};
 use serde::Deserialize;
 
 use crate::auth::{take_flash, AuthUser};
-use crate::models::{DoneStats, FileCard, Flash};
-use crate::query_filters::{parse_filters, parse_page_size, RawFilterInput};
+use crate::handlers::done::PageLink;
+use crate::models::{get_bool, get_i64, get_str, Flash};
+use crate::query_filters::parse_page_size;
 use crate::state::AppState;
+use crate::tgfs_join;
+use crate::tgfs_models::{TgfsDoneStats, TgfsFileCard};
+use crate::tgfs_query_filters::{parse_tgfs_filters, TgfsRawFilterInput};
 use crate::util::{commas, fmt_pct1, render, url_encode};
 
 const MAX_PAGES: i64 = 5;
 
 #[derive(Deserialize, Default)]
-pub struct DoneQuery {
+pub struct TgfsDoneQuery {
     #[serde(default)]
     pub user_id: String,
+    #[serde(default)]
+    pub bot_id: String,
     #[serde(default)]
     pub file_name: String,
     #[serde(default)]
@@ -27,7 +32,7 @@ pub struct DoneQuery {
     #[serde(default)]
     pub status: String,
     #[serde(default)]
-    pub id: String,
+    pub file_id: String,
     #[serde(default)]
     pub size_min: String,
     #[serde(default)]
@@ -42,25 +47,20 @@ pub struct DoneQuery {
     pub page_size: String,
 }
 
-pub struct PageLink {
-    pub number: i64,
-    pub href: String,
-    pub active: bool,
-}
-
 #[derive(Template)]
-#[template(path = "done.html")]
-struct DoneTemplate {
+#[template(path = "done-tgfs.html")]
+struct TgfsDoneTemplate {
     logged_in: bool,
     username: String,
     flashes: Vec<Flash>,
-    files: Vec<FileCard>,
+    files: Vec<TgfsFileCard>,
     search_user_id: String,
+    search_bot_id: String,
     search_file_name: String,
     search_forward_from: String,
     search_reviewed_by: String,
     search_status: String,
-    search_id: String,
+    search_file_id: String,
     search_size_min: i64,
     search_size_max: i64,
     size_filter_active: bool,
@@ -68,7 +68,7 @@ struct DoneTemplate {
     search_date_to: String,
     date_filter_active: bool,
     page_heading: String,
-    stats: Option<DoneStats>,
+    stats: Option<TgfsDoneStats>,
     total_pages: i64,
     pages: Vec<PageLink>,
     page_size: i64,
@@ -76,16 +76,18 @@ struct DoneTemplate {
     show_tgfs_nav: bool,
 }
 
-fn build_done_url(
+#[allow(clippy::too_many_arguments)]
+fn build_tgfs_done_url(
     page: i64,
     search_user_id: &str,
+    search_bot_id: &str,
     search_file_name: &str,
     search_forward_from: &str,
     search_reviewed_by: &str,
     search_status: &str,
     size_min: i64,
     size_max: i64,
-    search_id: &str,
+    search_file_id: &str,
     search_date_from: &str,
     search_date_to: &str,
     page_size: i64,
@@ -93,6 +95,9 @@ fn build_done_url(
     let mut params: Vec<(String, String)> = vec![("page".into(), page.to_string())];
     if !search_user_id.is_empty() {
         params.push(("user_id".into(), search_user_id.to_string()));
+    }
+    if !search_bot_id.is_empty() {
+        params.push(("bot_id".into(), search_bot_id.to_string()));
     }
     if !search_file_name.is_empty() {
         params.push(("file_name".into(), search_file_name.to_string()));
@@ -108,8 +113,8 @@ fn build_done_url(
     }
     params.push(("size_min".into(), size_min.to_string()));
     params.push(("size_max".into(), size_max.to_string()));
-    if !search_id.is_empty() {
-        params.push(("id".into(), search_id.to_string()));
+    if !search_file_id.is_empty() {
+        params.push(("file_id".into(), search_file_id.to_string()));
     }
     if !search_date_from.is_empty() {
         params.push(("date_from".into(), search_date_from.to_string()));
@@ -123,13 +128,13 @@ fn build_done_url(
         .map(|(k, v)| format!("{}={}", k, url_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    format!("{}/done-plgb?{}", crate::BASE_PATH, query)
+    format!("{}/done-tgfs?{}", crate::BASE_PATH, query)
 }
 
 pub async fn done(
     AuthUser(session): AuthUser,
     State(state): State<AppState>,
-    Query(q): Query<DoneQuery>,
+    Query(q): Query<TgfsDoneQuery>,
     jar: PrivateCookieJar,
 ) -> impl IntoResponse {
     let (jar, flash) = take_flash(jar);
@@ -137,13 +142,14 @@ pub async fn done(
         .map(|(category, message)| vec![Flash { category, message }])
         .unwrap_or_default();
 
-    let parsed = parse_filters(RawFilterInput {
+    let parsed = parse_tgfs_filters(TgfsRawFilterInput {
         user_id: &q.user_id,
+        bot_id: &q.bot_id,
         file_name: &q.file_name,
         forward_from: &q.forward_from,
         size_min: &q.size_min,
         size_max: &q.size_max,
-        id: &q.id,
+        file_id: &q.file_id,
         date_from: &q.date_from,
         date_to: &q.date_to,
     });
@@ -154,10 +160,16 @@ pub async fn done(
             message: "Invalid user ID. Please enter a valid number.".into(),
         });
     }
+    if parsed.invalid_bot_id {
+        flashes.push(Flash {
+            category: "error".into(),
+            message: "Invalid bot ID. Please enter a valid number.".into(),
+        });
+    }
     if parsed.invalid_file_id {
         flashes.push(Flash {
             category: "error".into(),
-            message: "Invalid File ID format. Please enter a valid 24-character hex ID.".into(),
+            message: "Invalid file ID. Please enter a valid number.".into(),
         });
     }
     if parsed.invalid_date_range {
@@ -169,71 +181,101 @@ pub async fn done(
 
     let search_reviewed_by = q.reviewed_by.trim().to_string();
     let search_status = q.status.trim().to_string();
+    let search_reviewed_by_lower = search_reviewed_by.to_lowercase();
 
-    // Base condition: only reviewed files, plus whatever the shared parser found.
-    let mut conditions = vec![doc! { "is_public": { "$exists": true } }];
-    conditions.extend(parsed.conditions.clone());
-
-    if !search_reviewed_by.is_empty() {
-        conditions.push(doc! { "reviewed_by": { "$regex": &search_reviewed_by, "$options": "i" } });
-    }
-    if search_status == "accepted" {
-        conditions.push(doc! { "is_public": true });
-    } else if search_status == "rejected" {
-        conditions.push(doc! { "is_public": false });
-    }
-
-    let mut page: i64 = q.page.trim().parse().unwrap_or(1);
-    page = page.clamp(1, MAX_PAGES);
-    let page_size = parse_page_size(&q.page_size);
-
-    let pipeline = vec![
-        doc! { "$match": { "$and": conditions.clone() } },
-        doc! { "$sort": { "reviewed_at": -1 } },
-        doc! { "$skip": (page - 1) * page_size },
-        doc! { "$limit": page_size },
-    ];
-
-    let docs: Vec<Document> = match state.files.aggregate(pipeline).await {
-        Ok(cursor) => cursor.try_collect().await.unwrap_or_default(),
-        Err(err) => {
-            tracing::error!("aggregate error: {err}");
-            Vec::new()
-        }
+    let match_doc = if parsed.conditions.is_empty() {
+        doc! {}
+    } else {
+        doc! { "$and": parsed.conditions.clone() }
     };
 
-    let base_match = doc! { "$and": conditions.clone() };
-    let total_docs = state.files.count_documents(base_match).await.unwrap_or(0) as i64;
+    // telethon-plgb's review status (`reviewed_at`/`is_restricted`) lives on the
+    // blob doc, a different DB deployment than `user_files` — so reviewed-only
+    // filtering, status, and reviewed_by all have to be applied in-process after
+    // joining, rather than pushed into the index cluster's `$match`.
+    let (candidates, blob_map) = tgfs_join::candidates_with_blob(&state, &match_doc).await;
+    let mut reviewed: Vec<(usize, Document, Document)> = Vec::new();
+    for (cluster, index_doc) in candidates {
+        let file_id = get_i64(&index_doc, "file_id").unwrap_or(0);
+        let Some(blob_doc) = blob_map.get(&file_id) else {
+            continue;
+        };
+        if !blob_doc.contains_key("reviewed_at") {
+            continue;
+        }
+        let is_restricted = get_bool(blob_doc, "is_restricted").unwrap_or(false);
+        if search_status == "accepted" && is_restricted {
+            continue;
+        }
+        if search_status == "rejected" && !is_restricted {
+            continue;
+        }
+        if !search_reviewed_by.is_empty() {
+            let rb = get_str(blob_doc, "reviewed_by").unwrap_or_default().to_lowercase();
+            if !rb.contains(&search_reviewed_by_lower) {
+                continue;
+            }
+        }
+        reviewed.push((cluster, index_doc, blob_doc.clone()));
+    }
+
+    // Most-recently-reviewed first.
+    reviewed.sort_by(|a, b| {
+        let ts = |d: &Document| match d.get("reviewed_at") {
+            Some(Bson::DateTime(dt)) => dt.timestamp_millis(),
+            _ => 0,
+        };
+        ts(&b.2).cmp(&ts(&a.2))
+    });
+
+    let total_docs = reviewed.len() as i64;
+    let page_size = parse_page_size(&q.page_size);
+    let mut page: i64 = q.page.trim().parse().unwrap_or(1);
+    page = page.clamp(1, MAX_PAGES);
     let total_pages = MAX_PAGES.min(((total_docs + page_size - 1) / page_size).max(1));
+
+    let start = ((page - 1) * page_size) as usize;
+    let end = (start + page_size as usize).min(reviewed.len());
+    let page_slice = if start < reviewed.len() {
+        &reviewed[start..end]
+    } else {
+        &[]
+    };
+
+    let files: Vec<TgfsFileCard> = page_slice
+        .iter()
+        .enumerate()
+        .map(|(i, (cluster, index_doc, blob_doc))| {
+            TgfsFileCard::from_docs(
+                index_doc,
+                Some(blob_doc),
+                *cluster,
+                start + i + 1,
+                &state.tgfs.link_secret,
+                &state.tgfs.public_url,
+            )
+        })
+        .collect();
 
     let has_extra_filter = !search_reviewed_by.is_empty()
         || !search_status.is_empty()
         || !parsed.search_user_id.is_empty()
+        || !parsed.search_bot_id.is_empty()
         || !parsed.search_file_name.is_empty()
         || !parsed.search_forward_from.is_empty()
         || parsed.size_filter_active
         || parsed.date_filter_active
-        || !parsed.search_id.is_empty();
+        || !parsed.search_file_id.is_empty();
 
     let stats = if has_extra_filter {
-        let mut accepted_conditions = conditions.clone();
-        accepted_conditions.push(doc! { "is_public": true });
-        let accepted = state
-            .files
-            .count_documents(doc! { "$and": accepted_conditions })
-            .await
-            .unwrap_or(0) as i64;
-
-        let mut rejected_conditions = conditions.clone();
-        rejected_conditions.push(doc! { "is_public": false });
-        let rejected = state
-            .files
-            .count_documents(doc! { "$and": rejected_conditions })
-            .await
-            .unwrap_or(0) as i64;
-
-        Some(DoneStats {
+        let accepted = reviewed
+            .iter()
+            .filter(|(_, _, b)| !get_bool(b, "is_restricted").unwrap_or(false))
+            .count() as i64;
+        let rejected = total_docs - accepted;
+        Some(TgfsDoneStats {
             search_user_id: parsed.actual_user_id.map(|v| v.to_string()).unwrap_or_default(),
+            search_bot_id: parsed.actual_bot_id.map(|v| v.to_string()).unwrap_or_default(),
             search_file_name: parsed.search_file_name.clone(),
             search_reviewed_by: search_reviewed_by.clone(),
             size_filter_active: parsed.size_filter_active,
@@ -253,12 +295,6 @@ pub async fn done(
         None
     };
 
-    let files: Vec<FileCard> = docs
-        .iter()
-        .enumerate()
-        .map(|(i, d)| FileCard::from_doc(d, i + 1, &state.fqdn))
-        .collect();
-
     if files.is_empty() {
         flashes.push(Flash {
             category: "info".into(),
@@ -267,31 +303,35 @@ pub async fn done(
     }
 
     let page_heading = if has_extra_filter {
-        let mut heading = "\u{2705} Reviewed Files".to_string();
+        let mut heading = "\u{2705} Reviewed TGFS Files".to_string();
         if !parsed.search_user_id.is_empty() {
             heading.push_str(&format!(" \u{2013} User {}", parsed.search_user_id));
+        }
+        if !parsed.search_bot_id.is_empty() {
+            heading.push_str(&format!(" \u{2013} Bot {}", parsed.search_bot_id));
         }
         if !parsed.search_file_name.is_empty() {
             heading.push_str(&format!(" + \"{}\"", parsed.search_file_name));
         }
         heading
     } else {
-        format!("\u{2705} Reviewed Files (most recent {page_size})")
+        format!("\u{2705} Reviewed TGFS Files (most recent {page_size})")
     };
 
     let pages: Vec<PageLink> = (1..=total_pages)
         .map(|p| PageLink {
             number: p,
-            href: build_done_url(
+            href: build_tgfs_done_url(
                 p,
                 &parsed.search_user_id,
+                &parsed.search_bot_id,
                 &parsed.search_file_name,
                 &parsed.search_forward_from,
                 &search_reviewed_by,
                 &search_status,
                 parsed.search_size_min,
                 parsed.search_size_max,
-                &parsed.search_id,
+                &parsed.search_file_id,
                 &parsed.search_date_from,
                 &parsed.search_date_to,
                 page_size,
@@ -300,17 +340,18 @@ pub async fn done(
         })
         .collect();
 
-    let tmpl = DoneTemplate {
+    let tmpl = TgfsDoneTemplate {
         logged_in: true,
         username: session.username,
         flashes,
         files,
         search_user_id: parsed.search_user_id,
+        search_bot_id: parsed.search_bot_id,
         search_file_name: parsed.search_file_name,
         search_forward_from: parsed.search_forward_from,
         search_reviewed_by,
         search_status,
-        search_id: parsed.search_id,
+        search_file_id: parsed.search_file_id,
         search_size_min: parsed.search_size_min,
         search_size_max: parsed.search_size_max,
         size_filter_active: parsed.size_filter_active,
@@ -322,8 +363,8 @@ pub async fn done(
         total_pages,
         pages,
         page_size,
-        show_plgb_nav: true,
-        show_tgfs_nav: false,
+        show_plgb_nav: false,
+        show_tgfs_nav: true,
     };
 
     (jar, render(tmpl))
