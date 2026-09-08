@@ -1,6 +1,6 @@
 use mongodb::bson::{doc, Document};
 
-use crate::util::{ist_date_end_epoch, ist_date_start_epoch};
+use crate::util::{ist_date_end_epoch, ist_date_start_epoch, regex_escape};
 
 /// Converts an IST-calendar-day epoch (seconds, as returned by
 /// `ist_date_start_epoch`/`ist_date_end_epoch`) into a BSON `DateTime`, since
@@ -128,7 +128,7 @@ pub fn parse_tgfs_filters(input: TgfsRawFilterInput) -> TgfsParsedFilters {
     let search_file_name = input.file_name.trim().to_string();
     if !search_file_name.is_empty() {
         for word in search_file_name.split_whitespace() {
-            conditions.push(doc! { "file_name": { "$regex": word, "$options": "i" } });
+            conditions.push(doc! { "file_name": { "$regex": regex_escape(word), "$options": "i" } });
         }
     }
 
@@ -142,7 +142,7 @@ pub fn parse_tgfs_filters(input: TgfsRawFilterInput) -> TgfsParsedFilters {
     // --- forward-from (OR across the 2 fields telethon-plgb records) ---
     let search_forward_from = input.forward_from.trim().to_string();
     if !search_forward_from.is_empty() {
-        let regex = doc! { "$regex": &search_forward_from, "$options": "i" };
+        let regex = doc! { "$regex": regex_escape(&search_forward_from), "$options": "i" };
         conditions.push(doc! { "$or": [
             { "forward_name": regex.clone() },
             { "forward_username": regex },

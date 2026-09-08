@@ -10,7 +10,7 @@ use crate::auth::{take_flash, AuthUser};
 use crate::models::{DoneStats, FileCard, Flash};
 use crate::query_filters::{parse_filters, parse_page_size, RawFilterInput};
 use crate::state::AppState;
-use crate::util::{commas, fmt_pct1, render, url_encode};
+use crate::util::{commas, fmt_pct1, regex_escape, render, url_encode};
 
 const MAX_PAGES: i64 = 5;
 
@@ -175,7 +175,7 @@ pub async fn done(
     conditions.extend(parsed.conditions.clone());
 
     if !search_reviewed_by.is_empty() {
-        conditions.push(doc! { "reviewed_by": { "$regex": &search_reviewed_by, "$options": "i" } });
+        conditions.push(doc! { "reviewed_by": { "$regex": regex_escape(&search_reviewed_by), "$options": "i" } });
     }
     if search_status == "accepted" {
         conditions.push(doc! { "is_public": true });

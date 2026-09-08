@@ -1,6 +1,6 @@
 use mongodb::bson::{doc, oid::ObjectId, Document};
 
-use crate::util::{ist_date_end_epoch, ist_date_start_epoch};
+use crate::util::{ist_date_end_epoch, ist_date_start_epoch, regex_escape};
 
 /// Allowed values for the "how many files to show" dropdown on the review/done pages.
 pub const PAGE_SIZE_OPTIONS: [i64; 5] = [5, 10, 25, 50, 100];
@@ -105,7 +105,7 @@ pub fn parse_filters(input: RawFilterInput) -> ParsedFilters {
     let search_file_name = input.file_name.trim().to_string();
     if !search_file_name.is_empty() {
         for word in search_file_name.split_whitespace() {
-            conditions.push(doc! { "file_name": { "$regex": word, "$options": "i" } });
+            conditions.push(doc! { "file_name": { "$regex": regex_escape(word), "$options": "i" } });
         }
     }
 
@@ -119,7 +119,7 @@ pub fn parse_filters(input: RawFilterInput) -> ParsedFilters {
     // --- forward-from (OR across 4 fields) ---
     let search_forward_from = input.forward_from.trim().to_string();
     if !search_forward_from.is_empty() {
-        let regex = doc! { "$regex": &search_forward_from, "$options": "i" };
+        let regex = doc! { "$regex": regex_escape(&search_forward_from), "$options": "i" };
         conditions.push(doc! { "$or": [
             { "forward_first_name": regex.clone() },
             { "forward_username": regex.clone() },

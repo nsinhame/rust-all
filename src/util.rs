@@ -11,6 +11,23 @@ pub fn format_file_size(bytes: i64) -> String {
     format!("{:.2} TB", size)
 }
 
+/// Escapes regex metacharacters so a raw user-supplied search term is matched as a
+/// literal substring in a MongoDB `$regex` filter instead of being parsed as a
+/// (possibly invalid, e.g. a lone `+`/`*`/`?`) regex pattern.
+pub fn regex_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if matches!(
+            c,
+            '\\' | '.' | '+' | '*' | '?' | '(' | ')' | '|' | '[' | ']' | '{' | '}' | '^' | '$'
+        ) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
 /// Format an integer with thousands separators, e.g. 1234567 -> "1,234,567".
 pub fn commas(n: i64) -> String {
     let negative = n < 0;

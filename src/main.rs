@@ -180,6 +180,13 @@ async fn main() {
     let mongodb_uri = std::env::var("PLGB_MONGODB_URI").expect("PLGB_MONGODB_URI must be set");
     let access_key = std::env::var("ACCESS_KEY")
         .expect("ACCESS_KEY must be set (this is the `?key=` value required to reach the app)");
+    if access_key.len() < 32 {
+        panic!(
+            "ACCESS_KEY must be at least 32 bytes long (got {}); it's also used to derive the \
+             cookie encryption key. Generate one with: openssl rand -hex 32",
+            access_key.len()
+        );
+    }
     let fqdn = std::env::var("PLGB_FQDN")
         .expect("PLGB_FQDN must be set (base domain used to build dl/watch links, e.g. fcdn.example.com)");
     let users = load_users_from_env();
