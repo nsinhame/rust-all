@@ -1358,15 +1358,23 @@ body {
     word-break: break-word;
 }
 
-/* Puts two detail-rows side by side, e.g. User ID + File Size on one line. */
+/* Puts two detail-rows side by side (e.g. User ID + Created), sized to content. */
 .detail-row-pair {
     display: flex;
-    gap: 16px;
+    align-items: baseline;
+    gap: 24px;
+    padding: 6px 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-row-pair:last-child {
+    border-bottom: none;
 }
 
 .detail-row-pair .detail-row {
-    flex: 1;
-    min-width: 0;
+    flex: none;
+    padding: 0;
+    border-bottom: none;
 }
 
 .detail-row-pair .detail-row .label {
