@@ -187,6 +187,7 @@
                         data-original="{{ file.file_name }}"
                         rows="1"
                         title="Click to edit file name"
+                        autocomplete="off"
                     >{{ file.file_name }}</textarea>
                 </h3>
                 <div class="file-id-row">
@@ -444,6 +445,21 @@
 
 <script>
     const decisions = {};
+
+    // Restores the last-typed regex rename pattern/replacement (per-tab persistence only;
+    // never auto-applied - the user must still click "Rename All" to run it).
+    (function restoreRegexRenameInputs() {
+        const PATTERN_KEY = 'review_tgfs_regex_pattern';
+        const REPLACE_KEY = 'review_tgfs_regex_replace';
+        const patternEl = document.getElementById('regex-pattern');
+        const replaceEl = document.getElementById('regex-replace');
+        const savedPattern = localStorage.getItem(PATTERN_KEY);
+        const savedReplace = localStorage.getItem(REPLACE_KEY);
+        if (savedPattern !== null) patternEl.value = savedPattern;
+        if (savedReplace !== null) replaceEl.value = savedReplace;
+        patternEl.addEventListener('input', () => localStorage.setItem(PATTERN_KEY, patternEl.value));
+        replaceEl.addEventListener('input', () => localStorage.setItem(REPLACE_KEY, replaceEl.value));
+    })();
 
     function selectDecision(fileId, decision, button) {
         const card = button.closest('.file-card');
