@@ -3,7 +3,7 @@ use mongodb::bson::{doc, oid::ObjectId, Document};
 use crate::util::{ist_date_end_epoch, ist_date_start_epoch, regex_escape};
 
 /// Allowed values for the "how many files to show" dropdown on the review/done pages.
-pub const PAGE_SIZE_OPTIONS: [i64; 5] = [5, 10, 25, 50, 100];
+pub const PAGE_SIZE_OPTIONS: [i64; 8] = [5, 10, 25, 50, 100, 200, 500, 1000];
 
 /// Parses the `page_size` query param, falling back to 10 for missing/unrecognized values.
 pub fn parse_page_size(raw: &str) -> i64 {
