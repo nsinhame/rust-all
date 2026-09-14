@@ -10,7 +10,9 @@ use crate::auth::{take_flash, AuthUser};
 use crate::models::{DoneStats, FileCard, Flash};
 use crate::query_filters::{parse_filters, parse_page_size, RawFilterInput};
 use crate::state::AppState;
-use crate::util::{commas, fmt_pct1, regex_escape, render, url_encode};
+use crate::util::{
+    commas, fmt_pct1, ist_date_end_epoch, ist_date_start_epoch, regex_escape, render, url_encode,
+};
 
 const MAX_PAGES: i64 = 5;
 
@@ -36,6 +38,10 @@ pub struct DoneQuery {
     pub date_from: String,
     #[serde(default)]
     pub date_to: String,
+    #[serde(default)]
+    pub reviewed_date_from: String,
+    #[serde(default)]
+    pub reviewed_date_to: String,
     #[serde(default)]
     pub page: String,
     #[serde(default)]
@@ -67,6 +73,9 @@ struct DoneTemplate {
     search_date_from: String,
     search_date_to: String,
     date_filter_active: bool,
+    search_reviewed_date_from: String,
+    search_reviewed_date_to: String,
+    reviewed_date_filter_active: bool,
     page_heading: String,
     stats: Option<DoneStats>,
     total_pages: i64,
@@ -76,6 +85,7 @@ struct DoneTemplate {
     show_tgfs_nav: bool,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_done_url(
     page: i64,
     search_user_id: &str,
@@ -88,6 +98,8 @@ fn build_done_url(
     search_id: &str,
     search_date_from: &str,
     search_date_to: &str,
+    search_reviewed_date_from: &str,
+    search_reviewed_date_to: &str,
     page_size: i64,
 ) -> String {
     let mut params: Vec<(String, String)> = vec![("page".into(), page.to_string())];
@@ -116,6 +128,12 @@ fn build_done_url(
     }
     if !search_date_to.is_empty() {
         params.push(("date_to".into(), search_date_to.to_string()));
+    }
+    if !search_reviewed_date_from.is_empty() {
+        params.push(("reviewed_date_from".into(), search_reviewed_date_from.to_string()));
+    }
+    if !search_reviewed_date_to.is_empty() {
+        params.push(("reviewed_date_to".into(), search_reviewed_date_to.to_string()));
     }
     params.push(("page_size".into(), page_size.to_string()));
     let query = params
@@ -167,6 +185,49 @@ pub async fn done(
         });
     }
 
+    // --- reviewed-at date range (IST calendar days, `reviewed_at` is an epoch-seconds
+    // float on this collection, just like `time`) ---
+    let mut search_reviewed_date_from = q.reviewed_date_from.trim().to_string();
+    let mut search_reviewed_date_to = q.reviewed_date_to.trim().to_string();
+    let mut invalid_reviewed_date_range = false;
+    let mut reviewed_from_epoch = if search_reviewed_date_from.is_empty() {
+        None
+    } else {
+        match ist_date_start_epoch(&search_reviewed_date_from) {
+            Some(epoch) => Some(epoch),
+            None => {
+                invalid_reviewed_date_range = true;
+                search_reviewed_date_from.clear();
+                None
+            }
+        }
+    };
+    let mut reviewed_to_epoch = if search_reviewed_date_to.is_empty() {
+        None
+    } else {
+        match ist_date_end_epoch(&search_reviewed_date_to) {
+            Some(epoch) => Some(epoch),
+            None => {
+                invalid_reviewed_date_range = true;
+                search_reviewed_date_to.clear();
+                None
+            }
+        }
+    };
+    if let (Some(from), Some(to)) = (reviewed_from_epoch, reviewed_to_epoch) {
+        if from > to {
+            std::mem::swap(&mut reviewed_from_epoch, &mut reviewed_to_epoch);
+            std::mem::swap(&mut search_reviewed_date_from, &mut search_reviewed_date_to);
+        }
+    }
+    let reviewed_date_filter_active = reviewed_from_epoch.is_some() || reviewed_to_epoch.is_some();
+    if invalid_reviewed_date_range {
+        flashes.push(Flash {
+            category: "error".into(),
+            message: "Invalid reviewed-at date range. Please use valid dates.".into(),
+        });
+    }
+
     let search_reviewed_by = q.reviewed_by.trim().to_string();
     let search_status = q.status.trim().to_string();
 
@@ -181,6 +242,16 @@ pub async fn done(
         conditions.push(doc! { "is_public": true });
     } else if search_status == "rejected" {
         conditions.push(doc! { "is_public": false });
+    }
+    if reviewed_date_filter_active {
+        let mut range = Document::new();
+        if let Some(from) = reviewed_from_epoch {
+            range.insert("$gte", from);
+        }
+        if let Some(to) = reviewed_to_epoch {
+            range.insert("$lte", to);
+        }
+        conditions.push(doc! { "reviewed_at": range });
     }
 
     let mut page: i64 = q.page.trim().parse().unwrap_or(1);
@@ -213,6 +284,7 @@ pub async fn done(
         || !parsed.search_forward_from.is_empty()
         || parsed.size_filter_active
         || parsed.date_filter_active
+        || reviewed_date_filter_active
         || !parsed.search_id.is_empty();
 
     let stats = if has_extra_filter {
@@ -247,6 +319,9 @@ pub async fn done(
             date_filter_active: parsed.date_filter_active,
             search_date_from: parsed.search_date_from.clone(),
             search_date_to: parsed.search_date_to.clone(),
+            reviewed_date_filter_active,
+            search_reviewed_date_from: search_reviewed_date_from.clone(),
+            search_reviewed_date_to: search_reviewed_date_to.clone(),
             is_exclusion: parsed.is_exclusion,
             total_fmt: commas(total_docs),
             accepted_fmt: commas(accepted),
@@ -299,6 +374,8 @@ pub async fn done(
                 &parsed.search_id,
                 &parsed.search_date_from,
                 &parsed.search_date_to,
+                &search_reviewed_date_from,
+                &search_reviewed_date_to,
                 page_size,
             ),
             active: p == page,
@@ -322,6 +399,9 @@ pub async fn done(
         search_date_from: parsed.search_date_from,
         search_date_to: parsed.search_date_to,
         date_filter_active: parsed.date_filter_active,
+        search_reviewed_date_from,
+        search_reviewed_date_to,
+        reviewed_date_filter_active,
         page_heading,
         stats,
         total_pages,

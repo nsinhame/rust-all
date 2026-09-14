@@ -12,8 +12,8 @@ use crate::query_filters::parse_page_size;
 use crate::state::AppState;
 use crate::tgfs_join;
 use crate::tgfs_models::{TgfsDoneStats, TgfsFileCard};
-use crate::tgfs_query_filters::{parse_tgfs_filters, TgfsRawFilterInput};
-use crate::util::{commas, fmt_pct1, render, url_encode};
+use crate::tgfs_query_filters::{epoch_to_bson_datetime, parse_tgfs_filters, TgfsRawFilterInput};
+use crate::util::{commas, fmt_pct1, ist_date_end_epoch, ist_date_start_epoch, render, url_encode};
 
 const MAX_PAGES: i64 = 5;
 
@@ -42,6 +42,10 @@ pub struct TgfsDoneQuery {
     #[serde(default)]
     pub date_to: String,
     #[serde(default)]
+    pub reviewed_date_from: String,
+    #[serde(default)]
+    pub reviewed_date_to: String,
+    #[serde(default)]
     pub page: String,
     #[serde(default)]
     pub page_size: String,
@@ -67,6 +71,9 @@ struct TgfsDoneTemplate {
     search_date_from: String,
     search_date_to: String,
     date_filter_active: bool,
+    search_reviewed_date_from: String,
+    search_reviewed_date_to: String,
+    reviewed_date_filter_active: bool,
     page_heading: String,
     stats: Option<TgfsDoneStats>,
     total_pages: i64,
@@ -90,6 +97,8 @@ fn build_tgfs_done_url(
     search_file_id: &str,
     search_date_from: &str,
     search_date_to: &str,
+    search_reviewed_date_from: &str,
+    search_reviewed_date_to: &str,
     page_size: i64,
 ) -> String {
     let mut params: Vec<(String, String)> = vec![("page".into(), page.to_string())];
@@ -121,6 +130,12 @@ fn build_tgfs_done_url(
     }
     if !search_date_to.is_empty() {
         params.push(("date_to".into(), search_date_to.to_string()));
+    }
+    if !search_reviewed_date_from.is_empty() {
+        params.push(("reviewed_date_from".into(), search_reviewed_date_from.to_string()));
+    }
+    if !search_reviewed_date_to.is_empty() {
+        params.push(("reviewed_date_to".into(), search_reviewed_date_to.to_string()));
     }
     params.push(("page_size".into(), page_size.to_string()));
     let query = params
@@ -179,6 +194,52 @@ pub async fn done(
         });
     }
 
+    // --- reviewed-at date range (IST calendar days). Unlike PLGB, TGFS's blob
+    // `reviewed_at` is a native BSON DateTime (see `tgfs_query_filters::epoch_to_bson_datetime`),
+    // and it lives on the joined blob doc, so this can't be pushed into `match_doc` either.
+    let mut search_reviewed_date_from = q.reviewed_date_from.trim().to_string();
+    let mut search_reviewed_date_to = q.reviewed_date_to.trim().to_string();
+    let mut invalid_reviewed_date_range = false;
+    let mut reviewed_from_epoch = if search_reviewed_date_from.is_empty() {
+        None
+    } else {
+        match ist_date_start_epoch(&search_reviewed_date_from) {
+            Some(epoch) => Some(epoch),
+            None => {
+                invalid_reviewed_date_range = true;
+                search_reviewed_date_from.clear();
+                None
+            }
+        }
+    };
+    let mut reviewed_to_epoch = if search_reviewed_date_to.is_empty() {
+        None
+    } else {
+        match ist_date_end_epoch(&search_reviewed_date_to) {
+            Some(epoch) => Some(epoch),
+            None => {
+                invalid_reviewed_date_range = true;
+                search_reviewed_date_to.clear();
+                None
+            }
+        }
+    };
+    if let (Some(from), Some(to)) = (reviewed_from_epoch, reviewed_to_epoch) {
+        if from > to {
+            std::mem::swap(&mut reviewed_from_epoch, &mut reviewed_to_epoch);
+            std::mem::swap(&mut search_reviewed_date_from, &mut search_reviewed_date_to);
+        }
+    }
+    let reviewed_date_filter_active = reviewed_from_epoch.is_some() || reviewed_to_epoch.is_some();
+    let reviewed_from_ms = reviewed_from_epoch.map(|e| epoch_to_bson_datetime(e).timestamp_millis());
+    let reviewed_to_ms = reviewed_to_epoch.map(|e| epoch_to_bson_datetime(e).timestamp_millis());
+    if invalid_reviewed_date_range {
+        flashes.push(Flash {
+            category: "error".into(),
+            message: "Invalid reviewed-at date range. Please use valid dates.".into(),
+        });
+    }
+
     let search_reviewed_by = q.reviewed_by.trim().to_string();
     let search_status = q.status.trim().to_string();
     let search_reviewed_by_lower = search_reviewed_by.to_lowercase();
@@ -214,6 +275,22 @@ pub async fn done(
             let rb = get_str(blob_doc, "reviewed_by").unwrap_or_default().to_lowercase();
             if !rb.contains(&search_reviewed_by_lower) {
                 continue;
+            }
+        }
+        if reviewed_date_filter_active {
+            let reviewed_ms = match blob_doc.get("reviewed_at") {
+                Some(Bson::DateTime(dt)) => dt.timestamp_millis(),
+                _ => continue,
+            };
+            if let Some(from_ms) = reviewed_from_ms {
+                if reviewed_ms < from_ms {
+                    continue;
+                }
+            }
+            if let Some(to_ms) = reviewed_to_ms {
+                if reviewed_ms > to_ms {
+                    continue;
+                }
             }
         }
         reviewed.push((cluster, index_doc, blob_doc.clone()));
@@ -265,6 +342,7 @@ pub async fn done(
         || !parsed.search_forward_from.is_empty()
         || parsed.size_filter_active
         || parsed.date_filter_active
+        || reviewed_date_filter_active
         || !parsed.search_file_id.is_empty();
 
     let stats = if has_extra_filter {
@@ -289,6 +367,9 @@ pub async fn done(
             date_filter_active: parsed.date_filter_active,
             search_date_from: parsed.search_date_from.clone(),
             search_date_to: parsed.search_date_to.clone(),
+            reviewed_date_filter_active,
+            search_reviewed_date_from: search_reviewed_date_from.clone(),
+            search_reviewed_date_to: search_reviewed_date_to.clone(),
             is_exclusion: parsed.is_exclusion,
             total_fmt: commas(total_docs),
             accepted_fmt: commas(accepted),
@@ -339,6 +420,8 @@ pub async fn done(
                 &parsed.search_file_id,
                 &parsed.search_date_from,
                 &parsed.search_date_to,
+                &search_reviewed_date_from,
+                &search_reviewed_date_to,
                 page_size,
             ),
             active: p == page,
@@ -363,6 +446,9 @@ pub async fn done(
         search_date_from: parsed.search_date_from,
         search_date_to: parsed.search_date_to,
         date_filter_active: parsed.date_filter_active,
+        search_reviewed_date_from,
+        search_reviewed_date_to,
+        reviewed_date_filter_active,
         page_heading,
         stats,
         total_pages,

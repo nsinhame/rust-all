@@ -6,7 +6,7 @@ use crate::util::{ist_date_end_epoch, ist_date_start_epoch, regex_escape};
 /// `ist_date_start_epoch`/`ist_date_end_epoch`) into a BSON `DateTime`, since
 /// telethon-plgb stores `user_files.added_at` as a native Mongo date, not the
 /// unix-seconds float the plgb bot uses for `time`.
-fn epoch_to_bson_datetime(epoch_secs: f64) -> mongodb::bson::DateTime {
+pub(crate) fn epoch_to_bson_datetime(epoch_secs: f64) -> mongodb::bson::DateTime {
     mongodb::bson::DateTime::from_millis((epoch_secs * 1000.0) as i64)
 }
 
