@@ -46,11 +46,14 @@ struct TgfsStatsTemplate {
 
     nik: ReviewerStats,
     prdp: ReviewerStats,
+    ai: ReviewerStats,
 
     nik_reviews_bar_pct: f64,
     prdp_reviews_bar_pct: f64,
+    ai_reviews_bar_pct: f64,
     nik_accept_rate: f64,
     prdp_accept_rate: f64,
+    ai_accept_rate: f64,
 
     bots: Vec<TgfsBotBreakdown>,
 
@@ -148,10 +151,13 @@ pub async fn stats(
 
     let nik = reviewer_stats(blob_colls, "nik", reviewed).await;
     let prdp = reviewer_stats(blob_colls, "prdp", reviewed).await;
+    let ai = reviewer_stats(blob_colls, "ai", reviewed).await;
     let nik_total = count_across(blob_colls, doc! { "reviewed_by": "nik" }).await;
     let prdp_total = count_across(blob_colls, doc! { "reviewed_by": "prdp" }).await;
+    let ai_total = count_across(blob_colls, doc! { "reviewed_by": "ai" }).await;
     let nik_accepted = count_across(blob_colls, doc! { "reviewed_by": "nik", "is_restricted": false }).await;
     let prdp_accepted = count_across(blob_colls, doc! { "reviewed_by": "prdp", "is_restricted": false }).await;
+    let ai_accepted = count_across(blob_colls, doc! { "reviewed_by": "ai", "is_restricted": false }).await;
 
     let progress_pct = pct(reviewed, total);
     let max_val = public.max(private).max(pending).max(1);
@@ -179,11 +185,13 @@ pub async fn stats(
         "0".to_string()
     };
 
-    let max_reviews = nik_total.max(prdp_total).max(1);
+    let max_reviews = nik_total.max(prdp_total).max(ai_total).max(1);
     let nik_reviews_bar_pct = pct(nik_total, max_reviews);
     let prdp_reviews_bar_pct = pct(prdp_total, max_reviews);
+    let ai_reviews_bar_pct = pct(ai_total, max_reviews);
     let nik_accept_rate = pct(nik_accepted, nik_total);
     let prdp_accept_rate = pct(prdp_accepted, prdp_total);
+    let ai_accept_rate = pct(ai_accepted, ai_total);
 
     let bots = bot_breakdown(index_colls).await;
 
@@ -218,11 +226,14 @@ pub async fn stats(
 
         nik,
         prdp,
+        ai,
 
         nik_reviews_bar_pct,
         prdp_reviews_bar_pct,
+        ai_reviews_bar_pct,
         nik_accept_rate,
         prdp_accept_rate,
+        ai_accept_rate,
 
         bots,
 

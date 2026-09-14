@@ -42,11 +42,14 @@ struct StatsTemplate {
 
     nik: ReviewerStats,
     prdp: ReviewerStats,
+    ai: ReviewerStats,
 
     nik_reviews_bar_pct: f64,
     prdp_reviews_bar_pct: f64,
+    ai_reviews_bar_pct: f64,
     nik_accept_rate: f64,
     prdp_accept_rate: f64,
+    ai_accept_rate: f64,
 
     total_diff: i64,
     total_diff_class: String,
@@ -141,6 +144,7 @@ pub async fn stats(
 
     let nik = reviewer_stats(&state, "nik", reviewed).await;
     let prdp = reviewer_stats(&state, "prdp", reviewed).await;
+    let ai = reviewer_stats(&state, "ai", reviewed).await;
 
     // re-fetch the raw numeric totals needed for cross-reviewer comparisons
     let nik_total = state
@@ -153,6 +157,11 @@ pub async fn stats(
         .count_documents(doc! { "reviewed_by": "prdp" })
         .await
         .unwrap_or(0) as i64;
+    let ai_total = state
+        .files
+        .count_documents(doc! { "reviewed_by": "ai" })
+        .await
+        .unwrap_or(0) as i64;
     let nik_accepted = state
         .files
         .count_documents(doc! { "reviewed_by": "nik", "is_public": true })
@@ -161,6 +170,11 @@ pub async fn stats(
     let prdp_accepted = state
         .files
         .count_documents(doc! { "reviewed_by": "prdp", "is_public": true })
+        .await
+        .unwrap_or(0) as i64;
+    let ai_accepted = state
+        .files
+        .count_documents(doc! { "reviewed_by": "ai", "is_public": true })
         .await
         .unwrap_or(0) as i64;
     let nik_rejected = state
@@ -200,11 +214,13 @@ pub async fn stats(
         "0".to_string()
     };
 
-    let max_reviews = nik_total.max(prdp_total).max(1);
+    let max_reviews = nik_total.max(prdp_total).max(ai_total).max(1);
     let nik_reviews_bar_pct = pct(nik_total, max_reviews);
     let prdp_reviews_bar_pct = pct(prdp_total, max_reviews);
+    let ai_reviews_bar_pct = pct(ai_total, max_reviews);
     let nik_accept_rate = pct(nik_accepted, nik_total);
     let prdp_accept_rate = pct(prdp_accepted, prdp_total);
+    let ai_accept_rate = pct(ai_accepted, ai_total);
 
     let tmpl = StatsTemplate {
         logged_in: true,
@@ -237,11 +253,14 @@ pub async fn stats(
 
         nik,
         prdp,
+        ai,
 
         nik_reviews_bar_pct,
         prdp_reviews_bar_pct,
+        ai_reviews_bar_pct,
         nik_accept_rate,
         prdp_accept_rate,
+        ai_accept_rate,
 
         total_diff: nik_total - prdp_total,
         total_diff_class: diff_class(nik_total, prdp_total),

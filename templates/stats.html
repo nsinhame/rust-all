@@ -160,7 +160,7 @@
 
     <!-- Reviewer Comparison Section -->
     <div class="reviewer-comparison-section">
-        <h3>Reviewer Comparison: Nik vs Prdp</h3>
+        <h3>Reviewer Comparison: Nik vs Prdp vs AI</h3>
 
         <!-- Reviewer Stats Cards -->
         <div class="reviewer-cards">
@@ -225,6 +225,37 @@
                     </div>
                 </div>
             </div>
+
+            <div class="reviewer-card reviewer-ai">
+                <div class="reviewer-header">
+                    <div class="reviewer-avatar">🤖</div>
+                    <div class="reviewer-name">AI</div>
+                </div>
+                <div class="reviewer-stats">
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ ai.total_reviewed_fmt }}</div>
+                        <div class="reviewer-stat-label">Total Reviewed</div>
+                    </div>
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ ai.accepted_fmt }}</div>
+                        <div class="reviewer-stat-label">Accepted</div>
+                    </div>
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ ai.rejected_fmt }}</div>
+                        <div class="reviewer-stat-label">Rejected</div>
+                    </div>
+                </div>
+                <div class="reviewer-metrics">
+                    <div class="reviewer-metric">
+                        <span class="metric-label-small">Acceptance Rate:</span>
+                        <span class="metric-value-small">{{ ai.acceptance_rate_fmt }}%</span>
+                    </div>
+                    <div class="reviewer-metric">
+                        <span class="metric-label-small">Contribution:</span>
+                        <span class="metric-value-small">{{ ai.contribution_fmt }}%</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Comparison Charts -->
@@ -251,6 +282,17 @@
                         <div class="comparison-bar-wrapper">
                             <div class="comparison-bar comparison-bar-prdp" style="width: {{ prdp_reviews_bar_pct }}%">
                                 <span class="comparison-bar-value">{{ prdp.total_reviewed_fmt }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="comparison-bar-item">
+                        <div class="comparison-bar-label">
+                            <span class="reviewer-badge reviewer-badge-ai">AI</span>
+                        </div>
+                        <div class="comparison-bar-wrapper">
+                            <div class="comparison-bar comparison-bar-ai" style="width: {{ ai_reviews_bar_pct }}%">
+                                <span class="comparison-bar-value">{{ ai.total_reviewed_fmt }}</span>
                             </div>
                         </div>
                     </div>
@@ -282,6 +324,17 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="comparison-bar-item">
+                        <div class="comparison-bar-label">
+                            <span class="reviewer-badge reviewer-badge-ai">AI</span>
+                        </div>
+                        <div class="comparison-bar-wrapper">
+                            <div class="comparison-bar comparison-bar-ai" style="width: {{ ai_accept_rate }}%">
+                                <span class="comparison-bar-value">{{ ai.acceptance_rate_fmt }}%</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -295,7 +348,8 @@
                                 <th>Metric</th>
                                 <th>Nik</th>
                                 <th>Prdp</th>
-                                <th>Difference</th>
+                                <th>AI</th>
+                                <th>Difference (Nik-Prdp)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -303,30 +357,35 @@
                                 <td>Total Reviews</td>
                                 <td>{{ nik.total_reviewed_fmt }}</td>
                                 <td>{{ prdp.total_reviewed_fmt }}</td>
+                                <td>{{ ai.total_reviewed_fmt }}</td>
                                 <td class="{{ total_diff_class }}">{{ total_diff }}</td>
                             </tr>
                             <tr>
                                 <td>Accepted</td>
                                 <td>{{ nik.accepted_fmt }}</td>
                                 <td>{{ prdp.accepted_fmt }}</td>
+                                <td>{{ ai.accepted_fmt }}</td>
                                 <td class="{{ accepted_diff_class }}">{{ accepted_diff }}</td>
                             </tr>
                             <tr>
                                 <td>Rejected</td>
                                 <td>{{ nik.rejected_fmt }}</td>
                                 <td>{{ prdp.rejected_fmt }}</td>
+                                <td>{{ ai.rejected_fmt }}</td>
                                 <td class="{{ rejected_diff_class }}">{{ rejected_diff }}</td>
                             </tr>
                             <tr>
                                 <td>Acceptance Rate</td>
                                 <td>{{ nik.acceptance_rate_fmt }}%</td>
                                 <td>{{ prdp.acceptance_rate_fmt }}%</td>
+                                <td>{{ ai.acceptance_rate_fmt }}%</td>
                                 <td class="{{ rate_diff_class }}">{{ rate_diff_fmt }}%</td>
                             </tr>
                             <tr>
                                 <td>Contribution to Total</td>
                                 <td>{{ nik.contribution_fmt }}%</td>
                                 <td>{{ prdp.contribution_fmt }}%</td>
+                                <td>{{ ai.contribution_fmt }}%</td>
                                 <td>-</td>
                             </tr>
                         </tbody>

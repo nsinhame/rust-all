@@ -2116,7 +2116,7 @@ body {
 
 .reviewer-cards {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 30px;
     margin-bottom: 40px;
 }
@@ -2141,6 +2141,10 @@ body {
 
 .reviewer-prdp {
     border-color: #8b5cf6;
+}
+
+.reviewer-ai {
+    border-color: #14b8a6;
 }
 
 .reviewer-header {
@@ -2169,6 +2173,10 @@ body {
 
 .reviewer-prdp .reviewer-avatar {
     background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+}
+
+.reviewer-ai .reviewer-avatar {
+    background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%);
 }
 
 .reviewer-name {
@@ -2202,6 +2210,10 @@ body {
     color: #8b5cf6;
 }
 
+.reviewer-ai .reviewer-stat-value {
+    color: #14b8a6;
+}
+
 .reviewer-stat-label {
     font-size: 12px;
     color: #666;
@@ -2226,6 +2238,10 @@ body {
 
 .reviewer-prdp .reviewer-metric {
     border-left-color: #8b5cf6;
+}
+
+.reviewer-ai .reviewer-metric {
+    border-left-color: #14b8a6;
 }
 
 .metric-label-small {
@@ -2279,6 +2295,10 @@ body {
     background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
 }
 
+.reviewer-badge-ai {
+    background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+}
+
 .comparison-bar-wrapper {
     background: #e5e7eb;
     border-radius: 8px;
@@ -2303,6 +2323,10 @@ body {
 
 .comparison-bar-prdp {
     background: linear-gradient(90deg, #8b5cf6 0%, #7c3aed 100%);
+}
+
+.comparison-bar-ai {
+    background: linear-gradient(90deg, #14b8a6 0%, #0d9488 100%);
 }
 
 .comparison-bar-value {

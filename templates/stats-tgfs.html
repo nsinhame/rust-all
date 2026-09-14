@@ -190,7 +190,7 @@
 
     <!-- Reviewer Comparison Section -->
     <div class="reviewer-comparison-section">
-        <h3>Reviewer Comparison: Nik vs Prdp</h3>
+        <h3>Reviewer Comparison: Nik vs Prdp vs AI</h3>
 
         <!-- Reviewer Stats Cards -->
         <div class="reviewer-cards">
@@ -255,6 +255,37 @@
                     </div>
                 </div>
             </div>
+
+            <div class="reviewer-card reviewer-ai">
+                <div class="reviewer-header">
+                    <div class="reviewer-avatar">🤖</div>
+                    <div class="reviewer-name">AI</div>
+                </div>
+                <div class="reviewer-stats">
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ ai.total_reviewed_fmt }}</div>
+                        <div class="reviewer-stat-label">Total Reviewed</div>
+                    </div>
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ ai.accepted_fmt }}</div>
+                        <div class="reviewer-stat-label">Accepted</div>
+                    </div>
+                    <div class="reviewer-stat">
+                        <div class="reviewer-stat-value">{{ ai.rejected_fmt }}</div>
+                        <div class="reviewer-stat-label">Rejected</div>
+                    </div>
+                </div>
+                <div class="reviewer-metrics">
+                    <div class="reviewer-metric">
+                        <span class="metric-label-small">Acceptance Rate:</span>
+                        <span class="metric-value-small">{{ ai.acceptance_rate_fmt }}%</span>
+                    </div>
+                    <div class="reviewer-metric">
+                        <span class="metric-label-small">Contribution:</span>
+                        <span class="metric-value-small">{{ ai.contribution_fmt }}%</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Comparison Charts -->
@@ -284,6 +315,17 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="comparison-bar-item">
+                        <div class="comparison-bar-label">
+                            <span class="reviewer-badge reviewer-badge-ai">AI</span>
+                        </div>
+                        <div class="comparison-bar-wrapper">
+                            <div class="comparison-bar comparison-bar-ai" style="width: {{ ai_reviews_bar_pct }}%">
+                                <span class="comparison-bar-value">{{ ai.total_reviewed_fmt }}</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -309,6 +351,17 @@
                         <div class="comparison-bar-wrapper">
                             <div class="comparison-bar comparison-bar-prdp" style="width: {{ prdp_accept_rate }}%">
                                 <span class="comparison-bar-value">{{ prdp.acceptance_rate_fmt }}%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="comparison-bar-item">
+                        <div class="comparison-bar-label">
+                            <span class="reviewer-badge reviewer-badge-ai">AI</span>
+                        </div>
+                        <div class="comparison-bar-wrapper">
+                            <div class="comparison-bar comparison-bar-ai" style="width: {{ ai_accept_rate }}%">
+                                <span class="comparison-bar-value">{{ ai.acceptance_rate_fmt }}%</span>
                             </div>
                         </div>
                     </div>
