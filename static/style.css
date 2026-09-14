@@ -920,6 +920,11 @@ body {
     pointer-events: none;
 }
 
+.page-btn-arrow {
+    font-weight: 700;
+    background: #f9fafb;
+}
+
 .file-card-rejected {
     border-color: #fca5a5;
     background: #fff5f5;

@@ -15,7 +15,8 @@ use crate::tgfs_models::{TgfsDoneStats, TgfsFileCard};
 use crate::tgfs_query_filters::{epoch_to_bson_datetime, parse_tgfs_filters, TgfsRawFilterInput};
 use crate::util::{commas, fmt_pct1, ist_date_end_epoch, ist_date_start_epoch, render, url_encode};
 
-const MAX_PAGES: i64 = 5;
+const DEFAULT_MAX_PAGES: i64 = 5;
+const PAGE_WINDOW: i64 = 4;
 
 #[derive(Deserialize, Default)]
 pub struct TgfsDoneQuery {
@@ -78,6 +79,8 @@ struct TgfsDoneTemplate {
     stats: Option<TgfsDoneStats>,
     total_pages: i64,
     pages: Vec<PageLink>,
+    prev_href: Option<String>,
+    next_href: Option<String>,
     page_size: i64,
     show_plgb_nav: bool,
     show_tgfs_nav: bool,
@@ -244,6 +247,17 @@ pub async fn done(
     let search_status = q.status.trim().to_string();
     let search_reviewed_by_lower = search_reviewed_by.to_lowercase();
 
+    let has_extra_filter = !search_reviewed_by.is_empty()
+        || !search_status.is_empty()
+        || !parsed.search_user_id.is_empty()
+        || !parsed.search_bot_id.is_empty()
+        || !parsed.search_file_name.is_empty()
+        || !parsed.search_forward_from.is_empty()
+        || parsed.size_filter_active
+        || parsed.date_filter_active
+        || reviewed_date_filter_active
+        || !parsed.search_file_id.is_empty();
+
     let match_doc = if parsed.conditions.is_empty() {
         doc! {}
     } else {
@@ -307,9 +321,16 @@ pub async fn done(
 
     let total_docs = reviewed.len() as i64;
     let page_size = parse_page_size(&q.page_size);
+    let real_total_pages = ((total_docs + page_size - 1) / page_size).max(1);
+    // Unfiltered "most recent" browsing stays capped at DEFAULT_MAX_PAGES; an active
+    // search needs the full result set reachable so it can actually be reviewed.
+    let total_pages = if has_extra_filter {
+        real_total_pages
+    } else {
+        DEFAULT_MAX_PAGES.min(real_total_pages)
+    };
     let mut page: i64 = q.page.trim().parse().unwrap_or(1);
-    page = page.clamp(1, MAX_PAGES);
-    let total_pages = MAX_PAGES.min(((total_docs + page_size - 1) / page_size).max(1));
+    page = page.clamp(1, total_pages);
 
     let start = ((page - 1) * page_size) as usize;
     let end = (start + page_size as usize).min(reviewed.len());
@@ -333,17 +354,6 @@ pub async fn done(
             )
         })
         .collect();
-
-    let has_extra_filter = !search_reviewed_by.is_empty()
-        || !search_status.is_empty()
-        || !parsed.search_user_id.is_empty()
-        || !parsed.search_bot_id.is_empty()
-        || !parsed.search_file_name.is_empty()
-        || !parsed.search_forward_from.is_empty()
-        || parsed.size_filter_active
-        || parsed.date_filter_active
-        || reviewed_date_filter_active
-        || !parsed.search_file_id.is_empty();
 
     let stats = if has_extra_filter {
         let accepted = reviewed
@@ -404,7 +414,20 @@ pub async fn done(
         format!("\u{2705} Reviewed TGFS Files (most recent {page_size})")
     };
 
-    let pages: Vec<PageLink> = (1..=total_pages)
+    // When a search is active, show a sliding window of PAGE_WINDOW page numbers
+    // (plus Prev/Next arrows) instead of every page, since total_pages is no longer capped.
+    let window_start = if has_extra_filter {
+        ((page - 1) / PAGE_WINDOW) * PAGE_WINDOW + 1
+    } else {
+        1
+    };
+    let window_end = if has_extra_filter {
+        (window_start + PAGE_WINDOW - 1).min(total_pages)
+    } else {
+        total_pages
+    };
+
+    let pages: Vec<PageLink> = (window_start..=window_end)
         .map(|p| PageLink {
             number: p,
             href: build_tgfs_done_url(
@@ -427,6 +450,45 @@ pub async fn done(
             active: p == page,
         })
         .collect();
+
+    let prev_href = (has_extra_filter && page > 1).then(|| {
+        build_tgfs_done_url(
+            page - 1,
+            &parsed.search_user_id,
+            &parsed.search_bot_id,
+            &parsed.search_file_name,
+            &parsed.search_forward_from,
+            &search_reviewed_by,
+            &search_status,
+            parsed.search_size_min,
+            parsed.search_size_max,
+            &parsed.search_file_id,
+            &parsed.search_date_from,
+            &parsed.search_date_to,
+            &search_reviewed_date_from,
+            &search_reviewed_date_to,
+            page_size,
+        )
+    });
+    let next_href = (has_extra_filter && page < total_pages).then(|| {
+        build_tgfs_done_url(
+            page + 1,
+            &parsed.search_user_id,
+            &parsed.search_bot_id,
+            &parsed.search_file_name,
+            &parsed.search_forward_from,
+            &search_reviewed_by,
+            &search_status,
+            parsed.search_size_min,
+            parsed.search_size_max,
+            &parsed.search_file_id,
+            &parsed.search_date_from,
+            &parsed.search_date_to,
+            &search_reviewed_date_from,
+            &search_reviewed_date_to,
+            page_size,
+        )
+    });
 
     let tmpl = TgfsDoneTemplate {
         logged_in: true,
@@ -453,6 +515,8 @@ pub async fn done(
         stats,
         total_pages,
         pages,
+        prev_href,
+        next_href,
         page_size,
         show_plgb_nav: false,
         show_tgfs_nav: true,

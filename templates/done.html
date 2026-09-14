@@ -304,9 +304,15 @@
             <!-- Pagination -->
             {% if total_pages > 1 %}
             <div class="pagination">
+                {% if let Some(href) = prev_href %}
+                <a href="{{ href }}" class="page-btn page-btn-arrow">« Prev</a>
+                {% endif %}
                 {% for p in pages %}
                 <a href="{{ p.href }}" class="page-btn {% if p.active %}page-btn-active{% endif %}">{{ p.number }}</a>
                 {% endfor %}
+                {% if let Some(href) = next_href %}
+                <a href="{{ href }}" class="page-btn page-btn-arrow">Next »</a>
+                {% endif %}
             </div>
             {% endif %}
 

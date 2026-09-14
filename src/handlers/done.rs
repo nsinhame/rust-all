@@ -14,7 +14,8 @@ use crate::util::{
     commas, fmt_pct1, ist_date_end_epoch, ist_date_start_epoch, regex_escape, render, url_encode,
 };
 
-const MAX_PAGES: i64 = 5;
+const DEFAULT_MAX_PAGES: i64 = 5;
+const PAGE_WINDOW: i64 = 4;
 
 #[derive(Deserialize, Default)]
 pub struct DoneQuery {
@@ -80,6 +81,8 @@ struct DoneTemplate {
     stats: Option<DoneStats>,
     total_pages: i64,
     pages: Vec<PageLink>,
+    prev_href: Option<String>,
+    next_href: Option<String>,
     page_size: i64,
     show_plgb_nav: bool,
     show_tgfs_nav: bool,
@@ -231,6 +234,16 @@ pub async fn done(
     let search_reviewed_by = q.reviewed_by.trim().to_string();
     let search_status = q.status.trim().to_string();
 
+    let has_extra_filter = !search_reviewed_by.is_empty()
+        || !search_status.is_empty()
+        || !parsed.search_user_id.is_empty()
+        || !parsed.search_file_name.is_empty()
+        || !parsed.search_forward_from.is_empty()
+        || parsed.size_filter_active
+        || parsed.date_filter_active
+        || reviewed_date_filter_active
+        || !parsed.search_id.is_empty();
+
     // Base condition: only reviewed files, plus whatever the shared parser found.
     let mut conditions = vec![doc! { "is_public": { "$exists": true } }];
     conditions.extend(parsed.conditions.clone());
@@ -254,9 +267,21 @@ pub async fn done(
         conditions.push(doc! { "reviewed_at": range });
     }
 
-    let mut page: i64 = q.page.trim().parse().unwrap_or(1);
-    page = page.clamp(1, MAX_PAGES);
     let page_size = parse_page_size(&q.page_size);
+
+    let base_match = doc! { "$and": conditions.clone() };
+    let total_docs = state.files.count_documents(base_match).await.unwrap_or(0) as i64;
+    let real_total_pages = ((total_docs + page_size - 1) / page_size).max(1);
+    // Unfiltered "most recent" browsing stays capped at DEFAULT_MAX_PAGES; an active
+    // search needs the full result set reachable so it can actually be reviewed.
+    let total_pages = if has_extra_filter {
+        real_total_pages
+    } else {
+        DEFAULT_MAX_PAGES.min(real_total_pages)
+    };
+
+    let mut page: i64 = q.page.trim().parse().unwrap_or(1);
+    page = page.clamp(1, total_pages);
 
     let pipeline = vec![
         doc! { "$match": { "$and": conditions.clone() } },
@@ -272,20 +297,6 @@ pub async fn done(
             Vec::new()
         }
     };
-
-    let base_match = doc! { "$and": conditions.clone() };
-    let total_docs = state.files.count_documents(base_match).await.unwrap_or(0) as i64;
-    let total_pages = MAX_PAGES.min(((total_docs + page_size - 1) / page_size).max(1));
-
-    let has_extra_filter = !search_reviewed_by.is_empty()
-        || !search_status.is_empty()
-        || !parsed.search_user_id.is_empty()
-        || !parsed.search_file_name.is_empty()
-        || !parsed.search_forward_from.is_empty()
-        || parsed.size_filter_active
-        || parsed.date_filter_active
-        || reviewed_date_filter_active
-        || !parsed.search_id.is_empty();
 
     let stats = if has_extra_filter {
         let mut accepted_conditions = conditions.clone();
@@ -359,7 +370,20 @@ pub async fn done(
         format!("\u{2705} Reviewed Files (most recent {page_size})")
     };
 
-    let pages: Vec<PageLink> = (1..=total_pages)
+    // When a search is active, show a sliding window of PAGE_WINDOW page numbers
+    // (plus Prev/Next arrows) instead of every page, since total_pages is no longer capped.
+    let window_start = if has_extra_filter {
+        ((page - 1) / PAGE_WINDOW) * PAGE_WINDOW + 1
+    } else {
+        1
+    };
+    let window_end = if has_extra_filter {
+        (window_start + PAGE_WINDOW - 1).min(total_pages)
+    } else {
+        total_pages
+    };
+
+    let pages: Vec<PageLink> = (window_start..=window_end)
         .map(|p| PageLink {
             number: p,
             href: build_done_url(
@@ -381,6 +405,43 @@ pub async fn done(
             active: p == page,
         })
         .collect();
+
+    let prev_href = (has_extra_filter && page > 1).then(|| {
+        build_done_url(
+            page - 1,
+            &parsed.search_user_id,
+            &parsed.search_file_name,
+            &parsed.search_forward_from,
+            &search_reviewed_by,
+            &search_status,
+            parsed.search_size_min,
+            parsed.search_size_max,
+            &parsed.search_id,
+            &parsed.search_date_from,
+            &parsed.search_date_to,
+            &search_reviewed_date_from,
+            &search_reviewed_date_to,
+            page_size,
+        )
+    });
+    let next_href = (has_extra_filter && page < total_pages).then(|| {
+        build_done_url(
+            page + 1,
+            &parsed.search_user_id,
+            &parsed.search_file_name,
+            &parsed.search_forward_from,
+            &search_reviewed_by,
+            &search_status,
+            parsed.search_size_min,
+            parsed.search_size_max,
+            &parsed.search_id,
+            &parsed.search_date_from,
+            &parsed.search_date_to,
+            &search_reviewed_date_from,
+            &search_reviewed_date_to,
+            page_size,
+        )
+    });
 
     let tmpl = DoneTemplate {
         logged_in: true,
@@ -406,6 +467,8 @@ pub async fn done(
         stats,
         total_pages,
         pages,
+        prev_href,
+        next_href,
         page_size,
         show_plgb_nav: true,
         show_tgfs_nav: false,
