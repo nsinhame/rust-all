@@ -214,11 +214,17 @@
 
             <div id="files-container">
                 {% for file in files %}
-                <div class="file-card {% if file.is_restricted %}file-card-rejected{% else %}file-card-accepted{% endif %}">
+                <div class="file-card {% if file.is_restricted %}file-card-rejected{% else %}file-card-accepted{% endif %}" data-file-id="{{ file.entry_id }}">
                     <div class="file-header">
                         <h3>
                             <span class="file-index">{{ file.index }}.</span>
-                            <span class="filename-done">{{ file.file_name }}</span>
+                            <textarea
+                                class="filename-input"
+                                data-original="{{ file.file_name }}"
+                                rows="1"
+                                title="Click to edit file name"
+                                autocomplete="off"
+                            >{{ file.file_name }}</textarea>
                         </h3>
                         <div class="file-id-row">
                             <div class="file-id">File ID: {{ file.file_id }} &middot; Bot: {{ file.bot_id }}</div>
@@ -292,6 +298,21 @@
                         <span class="status-badge status-accepted">✓ Accepted</span>
                         {% endif %}
                     </div>
+
+                    <div class="file-actions">
+                        <button class="btn btn-accept" onclick="selectDecision('{{ file.entry_id }}', 'accept', this)">
+                            ✓ Accept
+                        </button>
+                        <button class="btn btn-reject" onclick="selectDecision('{{ file.entry_id }}', 'reject', this)">
+                            ✗ Reject
+                        </button>
+                        <button class="btn btn-delete" onclick="selectDecision('{{ file.entry_id }}', 'delete', this)">
+                            🗑 Delete
+                        </button>
+                        <button class="btn btn-delete_warn" onclick="selectDecision('{{ file.entry_id }}', 'delete_warn', this)">
+                            🚫 Delete & Warn
+                        </button>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -310,6 +331,39 @@
                 {% endif %}
             </div>
             {% endif %}
+
+            <div class="bulk-actions">
+                <button type="button" class="btn btn-accept" onclick="bulkSetDecision('accept')">
+                    ✓ Accept All
+                </button>
+                <button type="button" class="btn btn-reject" onclick="bulkSetDecision('reject')">
+                    ✗ Reject All
+                </button>
+                <button type="button" class="btn btn-delete" onclick="bulkSetDecision('delete')">
+                    🗑 Delete All
+                </button>
+                <button type="button" class="btn btn-delete_warn" onclick="bulkSetDecision('delete_warn')">
+                    🚫 Delete & Warn All
+                </button>
+            </div>
+
+            <div class="submit-section">
+                <button id="showSummaryBtn" class="btn btn-primary btn-large" onclick="showSummary()">
+                    Review Summary & Submit
+                </button>
+            </div>
+
+            <!-- Summary Modal -->
+            <div id="summaryModal" class="modal">
+                <div class="modal-content">
+                    <h2>Review Summary</h2>
+                    <div id="summaryContent"></div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="closeSummary()">Cancel</button>
+                        <button class="btn btn-primary" onclick="submitDecisions()">Confirm & Submit</button>
+                    </div>
+                </div>
+            </div>
 
             {% else %}
             <div class="no-files">
@@ -443,6 +497,197 @@
 </div>
 
 <script>
+    const decisions = {};
+
+    function selectDecision(fileId, decision, button) {
+        const card = button.closest('.file-card');
+        const buttons = card.querySelectorAll('.file-actions .btn');
+
+        if (button.classList.contains('selected')) {
+            button.classList.remove('selected');
+            delete decisions[fileId];
+        } else {
+            buttons.forEach(btn => btn.classList.remove('selected'));
+            button.classList.add('selected');
+            decisions[fileId] = decision;
+        }
+
+        updateSubmitButton();
+    }
+
+    function updateSubmitButton() {
+        const count = Object.keys(decisions).length;
+        const btn = document.getElementById('showSummaryBtn');
+        if (!btn) return;
+        if (count > 0) {
+            btn.textContent = `Review Summary & Submit (${count} decisions)`;
+        } else {
+            btn.textContent = 'Review Summary & Submit';
+        }
+    }
+
+    function bulkSetDecision(decision) {
+        document.querySelectorAll('.file-card').forEach(card => {
+            const fileId = card.dataset.fileId;
+            const buttons = card.querySelectorAll('.file-actions .btn');
+            const target = card.querySelector(`.file-actions .btn-${decision}`);
+            if (!target) return;
+            buttons.forEach(btn => btn.classList.remove('selected'));
+            target.classList.add('selected');
+            decisions[fileId] = decision;
+        });
+        updateSubmitButton();
+    }
+
+    function showSummary() {
+        if (Object.keys(decisions).length === 0) {
+            alert('Please make at least one decision before submitting.');
+            return;
+        }
+
+        let acceptCount = 0, rejectCount = 0, deleteCount = 0, deleteWarnCount = 0;
+        let acceptList = [], rejectList = [], deleteList = [], deleteWarnList = [];
+
+        document.querySelectorAll('.file-card').forEach(card => {
+            const fileId = card.dataset.fileId;
+            if (!decisions[fileId]) return;
+            const fileInput = card.querySelector('.filename-input');
+            const fileName = fileInput.value.trim() || fileInput.dataset.original;
+            const originalName = fileInput.dataset.original;
+            const wasRenamed = fileName !== originalName;
+            const item = { name: fileName, original: originalName, renamed: wasRenamed };
+
+            if (decisions[fileId] === 'accept') { acceptCount++; acceptList.push(item); }
+            else if (decisions[fileId] === 'reject') { rejectCount++; rejectList.push(item); }
+            else if (decisions[fileId] === 'delete') { deleteCount++; deleteList.push(item); }
+            else if (decisions[fileId] === 'delete_warn') { deleteWarnCount++; deleteWarnList.push(item); }
+        });
+
+        let summaryHTML = `
+            <div class="summary-stats">
+                <div class="stat-box accept-stat">
+                    <div class="stat-number">${acceptCount}</div>
+                    <div class="stat-label">Files to Accept</div>
+                </div>
+                <div class="stat-box reject-stat">
+                    <div class="stat-number">${rejectCount}</div>
+                    <div class="stat-label">Files to Reject</div>
+                </div>
+                <div class="stat-box delete-stat">
+                    <div class="stat-number">${deleteCount}</div>
+                    <div class="stat-label">Files to Delete</div>
+                </div>
+                <div class="stat-box delete-stat">
+                    <div class="stat-number">${deleteWarnCount}</div>
+                    <div class="stat-label">Delete & Warn</div>
+                </div>
+            </div>
+        `;
+
+        const section = (title, list, warning) => {
+            if (list.length === 0) return '';
+            let html = `<div class="summary-section"><h3>${title}</h3><ul>`;
+            list.forEach(item => {
+                if (item.renamed) {
+                    html += `<li>${item.name} <span class="renamed-badge">✏ renamed from: ${item.original}</span></li>`;
+                } else {
+                    html += `<li>${item.name}</li>`;
+                }
+            });
+            html += '</ul>';
+            if (warning) html += `<p class="delete-warning">${warning}</p>`;
+            html += '</div>';
+            return html;
+        };
+
+        summaryHTML += section('✓ Accepting:', acceptList);
+        summaryHTML += section('✗ Rejecting:', rejectList);
+        summaryHTML += section('🗑 Deleting permanently:', deleteList,
+            '⚠ These entries will be permanently removed from the database and cannot be undone.');
+        summaryHTML += section('🚫 Deleting & warning user:', deleteWarnList,
+            '⚠ These entries will be permanently deleted and the uploader\'s warn count will be incremented. This cannot be undone.');
+
+        document.getElementById('summaryContent').innerHTML = summaryHTML;
+        document.getElementById('summaryModal').style.display = 'flex';
+    }
+
+    function closeSummary() {
+        document.getElementById('summaryModal').style.display = 'none';
+    }
+
+    function autoResize(el) {
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+    }
+
+    document.querySelectorAll('.filename-input').forEach(textarea => {
+        autoResize(textarea);
+
+        textarea.addEventListener('input', () => {
+            autoResize(textarea);
+            if (textarea.value.trim() !== textarea.dataset.original) {
+                textarea.classList.add('edited');
+            } else {
+                textarea.classList.remove('edited');
+            }
+        });
+
+        textarea.addEventListener('keydown', e => {
+            if (e.key === 'Enter') e.preventDefault();
+        });
+    });
+
+    function submitDecisions() {
+        if (Object.keys(decisions).length === 0) {
+            alert('No decisions to submit.');
+            return;
+        }
+
+        const deleteCount = Object.values(decisions).filter(d => d === 'delete').length;
+        const deleteWarnCount = Object.values(decisions).filter(d => d === 'delete_warn').length;
+        if (deleteCount > 0 && !confirm(`This will permanently delete ${deleteCount} link entr${deleteCount > 1 ? 'ies' : 'y'}. This cannot be undone. Continue?`)) {
+            return;
+        }
+        if (deleteWarnCount > 0 && !confirm(`This will permanently delete ${deleteWarnCount} link entr${deleteWarnCount > 1 ? 'ies' : 'y'} and increment the warn count for ${deleteWarnCount > 1 ? 'their uploaders' : 'its uploader'}. This cannot be undone. Continue?`)) {
+            return;
+        }
+
+        const submitBtn = document.querySelector('.modal-actions .btn-primary');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+
+        const fileNames = {};
+        document.querySelectorAll('.file-card').forEach(card => {
+            const fileId = card.dataset.fileId;
+            if (decisions[fileId]) {
+                const fileInput = card.querySelector('.filename-input');
+                fileNames[fileId] = fileInput.value.trim() || fileInput.dataset.original;
+            }
+        });
+
+        fetch('{{ crate::BASE_PATH }}/submit-tgfs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ decisions, file_names: fileNames })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Confirm & Submit';
+            }
+        })
+        .catch(error => {
+            alert('Error submitting decisions: ' + error);
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Confirm & Submit';
+        });
+    }
+
     // Computes the requested preset range as IST calendar dates and fills the date fields
     // (does not submit - click Search or press Enter to apply).
     function applyDatePreset(preset, fromId = 'dateFrom', toId = 'dateTo') {
