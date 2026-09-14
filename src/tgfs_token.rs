@@ -1,6 +1,6 @@
 //! Reimplementation of telethon-plgb's `make_token` link signing scheme
-//! (see `tgfs/utils/utils.py`), so this Rust app can build working `/dl/` and
-//! `/wt/` links against the same running tgfilestream server without needing
+//! (see `tgfs/utils/utils.py`), so this Rust app can build working `/dl/a/` and
+//! `/wt/a/` links against the same running tgfilestream server without needing
 //! Python or an HTTP round-trip.
 //!
 //! Token format: `base64url_nopad(payload) + "/" + base64url_nopad(sig)` where
@@ -14,7 +14,7 @@ use base64::Engine;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-/// Builds the `{payload_b64}/{sig_b64}` token telethon-plgb expects after `/dl/` or `/wt/`.
+/// Builds the `{payload_b64}/{sig_b64}` token telethon-plgb expects after `/dl/a/` or `/wt/a/`.
 pub fn make_token(secret: &[u8], user_id: i64, file_id: i64) -> String {
     let mut payload = Vec::with_capacity(17);
     payload.extend_from_slice(&(user_id as u64).to_be_bytes());
@@ -33,11 +33,13 @@ pub fn make_token(secret: &[u8], user_id: i64, file_id: i64) -> String {
 }
 
 /// Builds the download (`/dl/`) link for a file, owned by `user_id`, against `public_url`.
+/// The "/a/" segment marks the link as admin-originated so the load balancer skips ads.
 pub fn dl_url(public_url: &str, secret: &[u8], user_id: i64, file_id: i64) -> String {
-    format!("{public_url}/dl/{}", make_token(secret, user_id, file_id))
+    format!("{public_url}/dl/a/{}", make_token(secret, user_id, file_id))
 }
 
 /// Builds the inline-watch (`/wt/`) link for a file, owned by `user_id`, against `public_url`.
+/// The "/a/" segment marks the link as admin-originated so the load balancer skips ads.
 pub fn watch_url(public_url: &str, secret: &[u8], user_id: i64, file_id: i64) -> String {
-    format!("{public_url}/wt/{}", make_token(secret, user_id, file_id))
+    format!("{public_url}/wt/a/{}", make_token(secret, user_id, file_id))
 }

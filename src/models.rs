@@ -114,8 +114,9 @@ impl FileCard {
             .trim_end_matches('/')
             .trim_start_matches("https://")
             .trim_start_matches("http://");
-        let dl_url = format!("https://{fqdn}/dl/{id}/{file_name}");
-        let watch_url = format!("https://{fqdn}/watch/{id}/{file_name}");
+        // "/a/" marks the link as admin-originated so the load balancer skips ads.
+        let dl_url = format!("https://{fqdn}/dl/a/{id}/{file_name}");
+        let watch_url = format!("https://{fqdn}/watch/a/{id}/{file_name}");
 
         FileCard {
             index,
