@@ -689,7 +689,7 @@
             }
         });
 
-        fetch('{{ crate::BASE_PATH }}/submit', {
+        fetch('{{ crate::BASE_PATH }}/submit-plgb', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ decisions, file_names: fileNames })

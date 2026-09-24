@@ -13,7 +13,7 @@ Functionally equivalent to the original app:
 
 - Session-based login for reviewers configured via `LINK_REVIEW_USER{n}` / `LINK_REVIEW_USER{n}_PASS` env vars.
 - `/link-review/review-plgb` — 10 random unreviewed files with search (user id include/exclude, file name, forwarded-from, size range, Mongo `_id`) and live stats sidebar.
-- `/link-review/submit` — bulk accept/reject, optional rename, optional "special hash" tagging.
+- `/link-review/submit-plgb` — bulk accept/reject, optional rename, optional "special hash" tagging.
 - `/link-review/done-plgb` — paginated list of reviewed files with the same filters plus reviewer/status.
 - `/link-review/stats-plgb` — dashboard with global + per-reviewer comparison (top 2 configured users).
 - `/link-review/instructions-plgb` — static help page (search tips + 50 regex rename examples).
@@ -50,9 +50,9 @@ Everything below lives at the repository root:
 │   ├── tgfs_token.rs              # HMAC dl/watch link signing (matches the Python bot)
 │   └── handlers/
 │       ├── pages.rs          # /, /login, /logout, /instructions-plgb, /instructions-tgfs
-│       ├── review.rs         # /review-plgb, /submit
-│       ├── done.rs           # /done-plgb
-│       ├── stats.rs          # /stats-plgb
+│       ├── plgb_review.rs    # /review-plgb, /submit-plgb
+│       ├── plgb_done.rs      # /done-plgb
+│       ├── plgb_stats.rs     # /stats-plgb
 │       ├── tgfs_review.rs    # /review-tgfs, /submit-tgfs
 │       ├── tgfs_done.rs      # /done-tgfs
 │       └── tgfs_stats.rs     # /stats-tgfs

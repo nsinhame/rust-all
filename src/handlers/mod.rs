@@ -1,8 +1,8 @@
-pub mod done;
 pub mod health;
 pub mod pages;
-pub mod review;
-pub mod stats;
+pub mod plgb_done;
+pub mod plgb_review;
+pub mod plgb_stats;
 pub mod tgfs_done;
 pub mod tgfs_review;
 pub mod tgfs_stats;
