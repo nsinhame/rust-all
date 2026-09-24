@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::auth::{take_flash, AuthUser};
-use crate::models::{get_i64, Flash, FileCard, ReviewStats};
-use crate::query_filters::{parse_filters, parse_page_size, RawFilterInput};
+use crate::link_review::models::{get_i64, Flash, FileCard, ReviewStats};
+use crate::link_review::query_filters::{parse_filters, parse_page_size, RawFilterInput};
 use crate::state::AppState;
 use crate::util::{commas, fmt_pct1, render};
 
@@ -38,7 +38,7 @@ pub struct ReviewQuery {
 }
 
 #[derive(Template)]
-#[template(path = "review.html")]
+#[template(path = "link_review/review.html")]
 struct ReviewTemplate {
     logged_in: bool,
     username: String,

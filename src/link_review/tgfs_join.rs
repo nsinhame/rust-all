@@ -4,7 +4,7 @@ use futures_util::TryStreamExt;
 use mongodb::bson::{doc, Document};
 use mongodb::Collection;
 
-use crate::models::get_i64;
+use crate::link_review::models::get_i64;
 use crate::state::AppState;
 
 /// Working-set cap for operations that must materialize every `user_files`

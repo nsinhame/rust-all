@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Link List — File Search</title>
+<link rel="stylesheet" href="{{ crate::BASE_PATH_LIST }}/static/style.css">
+</head>
+<body>
+    <div class="topbar">
+        <label class="theme-switch" title="Toggle dark / light mode">
+            <input type="checkbox" id="themeToggle">
+            <span class="theme-slider">🌙</span>
+        </label>
+    </div>
+
+    <main class="search-page">
+        <h1 class="brand">🔎 Link List</h1>
+        <form method="GET" action="{{ crate::BASE_PATH_LIST }}/" class="search-bar">
+            <input
+                type="text"
+                name="q"
+                value="{{ query }}"
+                placeholder="Search files by name..."
+                class="search-input"
+                autocomplete="off"
+                autofocus
+            >
+            <button type="submit" class="search-btn" aria-label="Search">🔍</button>
+        </form>
+
+        {% if has_query %}
+        <div class="results-section">
+            {% if !tiles.is_empty() %}
+            <p class="results-summary">{{ total_results_fmt }} result(s) for "{{ query }}"</p>
+            <div class="tile-grid">
+                {% for tile in tiles %}
+                <a class="tile" href="{{ crate::BASE_PATH_LIST }}/file/{{ tile.source }}/{{ tile.detail_id }}">
+                    <div class="tile-icon">{{ tile.icon }}</div>
+                    <div class="tile-name" title="{{ tile.file_name }}">{{ tile.file_name }}</div>
+                    <div class="tile-size">{{ tile.file_size_fmt }}</div>
+                </a>
+                {% endfor %}
+            </div>
+
+            {% if total_pages > 1 %}
+            <div class="pagination">
+                {% if let Some(href) = prev_href %}
+                <a href="{{ href }}" class="page-btn page-btn-arrow">&laquo; Prev</a>
+                {% endif %}
+                {% for p in pages %}
+                <a href="{{ p.href }}" class="page-btn {% if p.active %}page-btn-active{% endif %}">{{ p.number }}</a>
+                {% endfor %}
+                {% if let Some(href) = next_href %}
+                <a href="{{ href }}" class="page-btn page-btn-arrow">Next &raquo;</a>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% else %}
+            <p class="no-results">No files found matching "{{ query }}".</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </main>
+
+<script>
+    const root = document.documentElement;
+    const toggle = document.getElementById('themeToggle');
+    const stored = localStorage.getItem('link_list_theme');
+    const initial = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    root.setAttribute('data-theme', initial);
+    toggle.checked = initial === 'dark';
+
+    toggle.addEventListener('change', () => {
+        const theme = toggle.checked ? 'dark' : 'light';
+        root.setAttribute('data-theme', theme);
+        localStorage.setItem('link_list_theme', theme);
+    });
+</script>
+</body>
+</html>

@@ -8,12 +8,12 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 use crate::auth::{take_flash, AuthUser};
-use crate::models::{get_bool, get_i64, Flash};
-use crate::query_filters::parse_page_size;
+use crate::link_review::models::{get_bool, get_i64, Flash};
+use crate::link_review::query_filters::parse_page_size;
 use crate::state::AppState;
-use crate::tgfs_join;
-use crate::tgfs_models::{decode_entry_id, TgfsFileCard, TgfsReviewStats};
-use crate::tgfs_query_filters::{parse_tgfs_filters, TgfsRawFilterInput};
+use crate::link_review::tgfs_join;
+use crate::link_review::tgfs_models::{decode_entry_id, TgfsFileCard, TgfsReviewStats};
+use crate::link_review::tgfs_query_filters::{parse_tgfs_filters, TgfsRawFilterInput};
 use crate::util::{commas, fmt_pct1, render};
 
 #[derive(Deserialize, Default)]
@@ -41,7 +41,7 @@ pub struct TgfsReviewQuery {
 }
 
 #[derive(Template)]
-#[template(path = "review-tgfs.html")]
+#[template(path = "link_review/review-tgfs.html")]
 struct TgfsReviewTemplate {
     logged_in: bool,
     username: String,

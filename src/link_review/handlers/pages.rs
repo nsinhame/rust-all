@@ -9,12 +9,12 @@ use crate::auth::{
     constant_time_eq, make_flash_cookie, make_session_cookie, session_removal_cookie, take_flash,
     AuthUser, OptionalAuthUser, SessionData,
 };
-use crate::models::Flash;
+use crate::link_review::models::Flash;
 use crate::state::AppState;
 use crate::util::render;
 
 #[derive(Template)]
-#[template(path = "login.html")]
+#[template(path = "link_review/login.html")]
 struct LoginTemplate {
     logged_in: bool,
     username: String,
@@ -24,7 +24,7 @@ struct LoginTemplate {
 }
 
 #[derive(Template)]
-#[template(path = "instructions.html")]
+#[template(path = "link_review/instructions.html")]
 struct InstructionsTemplate {
     logged_in: bool,
     username: String,
@@ -34,7 +34,7 @@ struct InstructionsTemplate {
 }
 
 #[derive(Template)]
-#[template(path = "instructions-tgfs.html")]
+#[template(path = "link_review/instructions-tgfs.html")]
 struct InstructionsTgfsTemplate {
     logged_in: bool,
     username: String,
@@ -44,7 +44,7 @@ struct InstructionsTgfsTemplate {
 }
 
 #[derive(Template)]
-#[template(path = "home.html")]
+#[template(path = "link_review/home.html")]
 struct HomeTemplate {
     logged_in: bool,
     username: String,

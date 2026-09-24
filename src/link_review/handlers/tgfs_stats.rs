@@ -8,13 +8,13 @@ use mongodb::Collection;
 use std::collections::HashMap;
 
 use crate::auth::{take_flash, AuthUser};
-use crate::models::{Flash, ReviewerStats};
+use crate::link_review::models::{Flash, ReviewerStats};
 use crate::state::AppState;
-use crate::tgfs_models::TgfsBotBreakdown;
+use crate::link_review::tgfs_models::TgfsBotBreakdown;
 use crate::util::{commas, fmt_pct1, pct, render};
 
 #[derive(Template)]
-#[template(path = "stats-tgfs.html")]
+#[template(path = "link_review/stats-tgfs.html")]
 struct TgfsStatsTemplate {
     logged_in: bool,
     username: String,
@@ -106,8 +106,8 @@ async fn bot_breakdown(index_colls: &[Collection<Document>]) -> Vec<TgfsBotBreak
         };
         let docs: Vec<Document> = cursor.try_collect().await.unwrap_or_default();
         for doc in docs {
-            if let Some(bot_id) = crate::models::get_i64(&doc, "_id") {
-                let count = crate::models::get_i64(&doc, "count").unwrap_or(0);
+            if let Some(bot_id) = crate::link_review::models::get_i64(&doc, "_id") {
+                let count = crate::link_review::models::get_i64(&doc, "count").unwrap_or(0);
                 *counts.entry(bot_id).or_insert(0) += count;
             }
         }

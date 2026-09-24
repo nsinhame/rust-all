@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ detail.file_name }} — Link List</title>
+<link rel="stylesheet" href="{{ crate::BASE_PATH_LIST }}/static/style.css">
+</head>
+<body>
+    <div class="topbar">
+        <a href="{{ back_href }}" class="back-link">&larr; Back to search</a>
+        <label class="theme-switch" title="Toggle dark / light mode">
+            <input type="checkbox" id="themeToggle">
+            <span class="theme-slider">🌙</span>
+        </label>
+    </div>
+
+    <main class="detail-page">
+        <div class="detail-card">
+            <div class="detail-icon">{{ detail.icon }}</div>
+            <h1 class="detail-name">{{ detail.file_name }}</h1>
+            <div class="detail-meta">
+                <span>{{ detail.file_size_fmt }}</span>
+                <span class="dot">&middot;</span>
+                <span>{{ detail.mime_type }}</span>
+            </div>
+            <div class="detail-actions">
+                <a href="{{ detail.dl_url }}" target="_blank" rel="noopener noreferrer" class="action-btn action-download">⬇ Download</a>
+                <a href="{{ detail.watch_url }}" target="_blank" rel="noopener noreferrer" class="action-btn action-watch">▶ Watch</a>
+            </div>
+        </div>
+    </main>
+
+<script>
+    const root = document.documentElement;
+    const toggle = document.getElementById('themeToggle');
+    const stored = localStorage.getItem('link_list_theme');
+    const initial = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    root.setAttribute('data-theme', initial);
+    toggle.checked = initial === 'dark';
+
+    toggle.addEventListener('change', () => {
+        const theme = toggle.checked ? 'dark' : 'light';
+        root.setAttribute('data-theme', theme);
+        localStorage.setItem('link_list_theme', theme);
+    });
+</script>
+</body>
+</html>

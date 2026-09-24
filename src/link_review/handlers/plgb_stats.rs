@@ -5,12 +5,12 @@ use axum_extra::extract::cookie::PrivateCookieJar;
 use mongodb::bson::doc;
 
 use crate::auth::{take_flash, AuthUser};
-use crate::models::{Flash, ReviewerStats};
+use crate::link_review::models::{Flash, ReviewerStats};
 use crate::state::AppState;
 use crate::util::{commas, fmt_pct1, pct, render};
 
 #[derive(Template)]
-#[template(path = "stats.html")]
+#[template(path = "link_review/stats.html")]
 struct StatsTemplate {
     logged_in: bool,
     username: String,

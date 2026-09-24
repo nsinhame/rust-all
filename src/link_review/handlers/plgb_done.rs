@@ -2,28 +2,25 @@ use askama::Template;
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;
 use axum_extra::extract::cookie::PrivateCookieJar;
-use mongodb::bson::{doc, Bson, Document};
+use futures_util::TryStreamExt;
+use mongodb::bson::{doc, Document};
 use serde::Deserialize;
 
 use crate::auth::{take_flash, AuthUser};
-use crate::handlers::plgb_done::PageLink;
-use crate::models::{get_bool, get_i64, get_str, Flash};
-use crate::query_filters::parse_page_size;
+use crate::link_review::models::{DoneStats, FileCard, Flash};
+use crate::link_review::query_filters::{parse_filters, parse_page_size, RawFilterInput};
 use crate::state::AppState;
-use crate::tgfs_join;
-use crate::tgfs_models::{TgfsDoneStats, TgfsFileCard};
-use crate::tgfs_query_filters::{epoch_to_bson_datetime, parse_tgfs_filters, TgfsRawFilterInput};
-use crate::util::{commas, fmt_pct1, ist_date_end_epoch, ist_date_start_epoch, render, url_encode};
+use crate::util::{
+    commas, fmt_pct1, ist_date_end_epoch, ist_date_start_epoch, regex_escape, render, url_encode,
+};
 
 const DEFAULT_MAX_PAGES: i64 = 5;
 const PAGE_WINDOW: i64 = 4;
 
 #[derive(Deserialize, Default)]
-pub struct TgfsDoneQuery {
+pub struct DoneQuery {
     #[serde(default)]
     pub user_id: String,
-    #[serde(default)]
-    pub bot_id: String,
     #[serde(default)]
     pub file_name: String,
     #[serde(default)]
@@ -33,7 +30,7 @@ pub struct TgfsDoneQuery {
     #[serde(default)]
     pub status: String,
     #[serde(default)]
-    pub file_id: String,
+    pub id: String,
     #[serde(default)]
     pub size_min: String,
     #[serde(default)]
@@ -52,20 +49,25 @@ pub struct TgfsDoneQuery {
     pub page_size: String,
 }
 
+pub struct PageLink {
+    pub number: i64,
+    pub href: String,
+    pub active: bool,
+}
+
 #[derive(Template)]
-#[template(path = "done-tgfs.html")]
-struct TgfsDoneTemplate {
+#[template(path = "link_review/done.html")]
+struct DoneTemplate {
     logged_in: bool,
     username: String,
     flashes: Vec<Flash>,
-    files: Vec<TgfsFileCard>,
+    files: Vec<FileCard>,
     search_user_id: String,
-    search_bot_id: String,
     search_file_name: String,
     search_forward_from: String,
     search_reviewed_by: String,
     search_status: String,
-    search_file_id: String,
+    search_id: String,
     search_size_min: i64,
     search_size_max: i64,
     size_filter_active: bool,
@@ -76,7 +78,7 @@ struct TgfsDoneTemplate {
     search_reviewed_date_to: String,
     reviewed_date_filter_active: bool,
     page_heading: String,
-    stats: Option<TgfsDoneStats>,
+    stats: Option<DoneStats>,
     total_pages: i64,
     pages: Vec<PageLink>,
     prev_href: Option<String>,
@@ -87,17 +89,16 @@ struct TgfsDoneTemplate {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_tgfs_done_url(
+fn build_done_url(
     page: i64,
     search_user_id: &str,
-    search_bot_id: &str,
     search_file_name: &str,
     search_forward_from: &str,
     search_reviewed_by: &str,
     search_status: &str,
     size_min: i64,
     size_max: i64,
-    search_file_id: &str,
+    search_id: &str,
     search_date_from: &str,
     search_date_to: &str,
     search_reviewed_date_from: &str,
@@ -107,9 +108,6 @@ fn build_tgfs_done_url(
     let mut params: Vec<(String, String)> = vec![("page".into(), page.to_string())];
     if !search_user_id.is_empty() {
         params.push(("user_id".into(), search_user_id.to_string()));
-    }
-    if !search_bot_id.is_empty() {
-        params.push(("bot_id".into(), search_bot_id.to_string()));
     }
     if !search_file_name.is_empty() {
         params.push(("file_name".into(), search_file_name.to_string()));
@@ -125,8 +123,8 @@ fn build_tgfs_done_url(
     }
     params.push(("size_min".into(), size_min.to_string()));
     params.push(("size_max".into(), size_max.to_string()));
-    if !search_file_id.is_empty() {
-        params.push(("file_id".into(), search_file_id.to_string()));
+    if !search_id.is_empty() {
+        params.push(("id".into(), search_id.to_string()));
     }
     if !search_date_from.is_empty() {
         params.push(("date_from".into(), search_date_from.to_string()));
@@ -146,13 +144,13 @@ fn build_tgfs_done_url(
         .map(|(k, v)| format!("{}={}", k, url_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    format!("{}/done-tgfs?{}", crate::BASE_PATH, query)
+    format!("{}/done-plgb?{}", crate::BASE_PATH, query)
 }
 
 pub async fn done(
     AuthUser(session): AuthUser,
     State(state): State<AppState>,
-    Query(q): Query<TgfsDoneQuery>,
+    Query(q): Query<DoneQuery>,
     jar: PrivateCookieJar,
 ) -> impl IntoResponse {
     let (jar, flash) = take_flash(jar);
@@ -160,14 +158,13 @@ pub async fn done(
         .map(|(category, message)| vec![Flash { category, message }])
         .unwrap_or_default();
 
-    let parsed = parse_tgfs_filters(TgfsRawFilterInput {
+    let parsed = parse_filters(RawFilterInput {
         user_id: &q.user_id,
-        bot_id: &q.bot_id,
         file_name: &q.file_name,
         forward_from: &q.forward_from,
         size_min: &q.size_min,
         size_max: &q.size_max,
-        file_id: &q.file_id,
+        id: &q.id,
         date_from: &q.date_from,
         date_to: &q.date_to,
     });
@@ -178,16 +175,10 @@ pub async fn done(
             message: "Invalid user ID. Please enter a valid number.".into(),
         });
     }
-    if parsed.invalid_bot_id {
-        flashes.push(Flash {
-            category: "error".into(),
-            message: "Invalid bot ID. Please enter a valid number.".into(),
-        });
-    }
     if parsed.invalid_file_id {
         flashes.push(Flash {
             category: "error".into(),
-            message: "Invalid file ID. Please enter a valid number.".into(),
+            message: "Invalid File ID format. Please enter a valid 24-character hex ID.".into(),
         });
     }
     if parsed.invalid_date_range {
@@ -197,9 +188,8 @@ pub async fn done(
         });
     }
 
-    // --- reviewed-at date range (IST calendar days). Unlike PLGB, TGFS's blob
-    // `reviewed_at` is a native BSON DateTime (see `tgfs_query_filters::epoch_to_bson_datetime`),
-    // and it lives on the joined blob doc, so this can't be pushed into `match_doc` either.
+    // --- reviewed-at date range (IST calendar days, `reviewed_at` is an epoch-seconds
+    // float on this collection, just like `time`) ---
     let mut search_reviewed_date_from = q.reviewed_date_from.trim().to_string();
     let mut search_reviewed_date_to = q.reviewed_date_to.trim().to_string();
     let mut invalid_reviewed_date_range = false;
@@ -234,8 +224,6 @@ pub async fn done(
         }
     }
     let reviewed_date_filter_active = reviewed_from_epoch.is_some() || reviewed_to_epoch.is_some();
-    let reviewed_from_ms = reviewed_from_epoch.map(|e| epoch_to_bson_datetime(e).timestamp_millis());
-    let reviewed_to_ms = reviewed_to_epoch.map(|e| epoch_to_bson_datetime(e).timestamp_millis());
     if invalid_reviewed_date_range {
         flashes.push(Flash {
             category: "error".into(),
@@ -245,82 +233,44 @@ pub async fn done(
 
     let search_reviewed_by = q.reviewed_by.trim().to_string();
     let search_status = q.status.trim().to_string();
-    let search_reviewed_by_lower = search_reviewed_by.to_lowercase();
 
     let has_extra_filter = !search_reviewed_by.is_empty()
         || !search_status.is_empty()
         || !parsed.search_user_id.is_empty()
-        || !parsed.search_bot_id.is_empty()
         || !parsed.search_file_name.is_empty()
         || !parsed.search_forward_from.is_empty()
         || parsed.size_filter_active
         || parsed.date_filter_active
         || reviewed_date_filter_active
-        || !parsed.search_file_id.is_empty();
+        || !parsed.search_id.is_empty();
 
-    let match_doc = if parsed.conditions.is_empty() {
-        doc! {}
-    } else {
-        doc! { "$and": parsed.conditions.clone() }
-    };
+    // Base condition: only reviewed files, plus whatever the shared parser found.
+    let mut conditions = vec![doc! { "is_public": { "$exists": true } }];
+    conditions.extend(parsed.conditions.clone());
 
-    // telethon-plgb's review status (`reviewed_at`/`is_restricted`) lives on the
-    // blob doc, a different DB deployment than `user_files` — so reviewed-only
-    // filtering, status, and reviewed_by all have to be applied in-process after
-    // joining, rather than pushed into the index cluster's `$match`.
-    let (candidates, blob_map) = tgfs_join::candidates_with_blob(&state, &match_doc).await;
-    let mut reviewed: Vec<(usize, Document, Document)> = Vec::new();
-    for (cluster, index_doc) in candidates {
-        let file_id = get_i64(&index_doc, "file_id").unwrap_or(0);
-        let Some(blob_doc) = blob_map.get(&file_id) else {
-            continue;
-        };
-        if !blob_doc.contains_key("reviewed_at") {
-            continue;
+    if !search_reviewed_by.is_empty() {
+        conditions.push(doc! { "reviewed_by": { "$regex": regex_escape(&search_reviewed_by), "$options": "i" } });
+    }
+    if search_status == "accepted" {
+        conditions.push(doc! { "is_public": true });
+    } else if search_status == "rejected" {
+        conditions.push(doc! { "is_public": false });
+    }
+    if reviewed_date_filter_active {
+        let mut range = Document::new();
+        if let Some(from) = reviewed_from_epoch {
+            range.insert("$gte", from);
         }
-        let is_restricted = get_bool(blob_doc, "is_restricted").unwrap_or(false);
-        if search_status == "accepted" && is_restricted {
-            continue;
+        if let Some(to) = reviewed_to_epoch {
+            range.insert("$lte", to);
         }
-        if search_status == "rejected" && !is_restricted {
-            continue;
-        }
-        if !search_reviewed_by.is_empty() {
-            let rb = get_str(blob_doc, "reviewed_by").unwrap_or_default().to_lowercase();
-            if !rb.contains(&search_reviewed_by_lower) {
-                continue;
-            }
-        }
-        if reviewed_date_filter_active {
-            let reviewed_ms = match blob_doc.get("reviewed_at") {
-                Some(Bson::DateTime(dt)) => dt.timestamp_millis(),
-                _ => continue,
-            };
-            if let Some(from_ms) = reviewed_from_ms {
-                if reviewed_ms < from_ms {
-                    continue;
-                }
-            }
-            if let Some(to_ms) = reviewed_to_ms {
-                if reviewed_ms > to_ms {
-                    continue;
-                }
-            }
-        }
-        reviewed.push((cluster, index_doc, blob_doc.clone()));
+        conditions.push(doc! { "reviewed_at": range });
     }
 
-    // Most-recently-reviewed first.
-    reviewed.sort_by(|a, b| {
-        let ts = |d: &Document| match d.get("reviewed_at") {
-            Some(Bson::DateTime(dt)) => dt.timestamp_millis(),
-            _ => 0,
-        };
-        ts(&b.2).cmp(&ts(&a.2))
-    });
-
-    let total_docs = reviewed.len() as i64;
     let page_size = parse_page_size(&q.page_size);
+
+    let base_match = doc! { "$and": conditions.clone() };
+    let total_docs = state.files.count_documents(base_match).await.unwrap_or(0) as i64;
     let real_total_pages = ((total_docs + page_size - 1) / page_size).max(1);
     // Unfiltered "most recent" browsing stays capped at DEFAULT_MAX_PAGES; an active
     // search needs the full result set reachable so it can actually be reviewed.
@@ -329,46 +279,49 @@ pub async fn done(
     } else {
         DEFAULT_MAX_PAGES.min(real_total_pages)
     };
+
     let mut page: i64 = q.page.trim().parse().unwrap_or(1);
     page = page.clamp(1, total_pages);
 
-    let start = ((page - 1) * page_size) as usize;
-    let end = (start + page_size as usize).min(reviewed.len());
-    let page_slice = if start < reviewed.len() {
-        &reviewed[start..end]
-    } else {
-        &[]
+    let pipeline = vec![
+        doc! { "$match": { "$and": conditions.clone() } },
+        doc! { "$sort": { "reviewed_at": -1 } },
+        doc! { "$skip": (page - 1) * page_size },
+        doc! { "$limit": page_size },
+    ];
+
+    let docs: Vec<Document> = match state.files.aggregate(pipeline).await {
+        Ok(cursor) => cursor.try_collect().await.unwrap_or_default(),
+        Err(err) => {
+            tracing::error!("aggregate error: {err}");
+            Vec::new()
+        }
     };
 
-    let files: Vec<TgfsFileCard> = page_slice
-        .iter()
-        .enumerate()
-        .map(|(i, (cluster, index_doc, blob_doc))| {
-            TgfsFileCard::from_docs(
-                index_doc,
-                Some(blob_doc),
-                *cluster,
-                start + i + 1,
-                &state.tgfs.link_secret,
-                &state.tgfs.public_url,
-            )
-        })
-        .collect();
-
     let stats = if has_extra_filter {
-        let accepted = reviewed
-            .iter()
-            .filter(|(_, _, b)| !get_bool(b, "is_restricted").unwrap_or(false))
-            .count() as i64;
-        let rejected = total_docs - accepted;
-        Some(TgfsDoneStats {
+        let mut accepted_conditions = conditions.clone();
+        accepted_conditions.push(doc! { "is_public": true });
+        let accepted = state
+            .files
+            .count_documents(doc! { "$and": accepted_conditions })
+            .await
+            .unwrap_or(0) as i64;
+
+        let mut rejected_conditions = conditions.clone();
+        rejected_conditions.push(doc! { "is_public": false });
+        let rejected = state
+            .files
+            .count_documents(doc! { "$and": rejected_conditions })
+            .await
+            .unwrap_or(0) as i64;
+
+        Some(DoneStats {
             search_user_id: parsed
                 .actual_user_ids
                 .iter()
                 .map(|v| v.to_string())
                 .collect::<Vec<_>>()
                 .join(", "),
-            search_bot_id: parsed.actual_bot_id.map(|v| v.to_string()).unwrap_or_default(),
             search_file_name: parsed.search_file_name.clone(),
             search_reviewed_by: search_reviewed_by.clone(),
             size_filter_active: parsed.size_filter_active,
@@ -391,6 +344,12 @@ pub async fn done(
         None
     };
 
+    let files: Vec<FileCard> = docs
+        .iter()
+        .enumerate()
+        .map(|(i, d)| FileCard::from_doc(d, i + 1, &state.fqdn))
+        .collect();
+
     if files.is_empty() {
         flashes.push(Flash {
             category: "info".into(),
@@ -399,19 +358,16 @@ pub async fn done(
     }
 
     let page_heading = if has_extra_filter {
-        let mut heading = "\u{2705} Reviewed TGFS Files".to_string();
+        let mut heading = "\u{2705} Reviewed Files".to_string();
         if !parsed.search_user_id.is_empty() {
             heading.push_str(&format!(" \u{2013} User {}", parsed.search_user_id));
-        }
-        if !parsed.search_bot_id.is_empty() {
-            heading.push_str(&format!(" \u{2013} Bot {}", parsed.search_bot_id));
         }
         if !parsed.search_file_name.is_empty() {
             heading.push_str(&format!(" + \"{}\"", parsed.search_file_name));
         }
         heading
     } else {
-        format!("\u{2705} Reviewed TGFS Files (most recent {page_size})")
+        format!("\u{2705} Reviewed Files (most recent {page_size})")
     };
 
     // When a search is active, show a sliding window of PAGE_WINDOW page numbers
@@ -430,17 +386,16 @@ pub async fn done(
     let pages: Vec<PageLink> = (window_start..=window_end)
         .map(|p| PageLink {
             number: p,
-            href: build_tgfs_done_url(
+            href: build_done_url(
                 p,
                 &parsed.search_user_id,
-                &parsed.search_bot_id,
                 &parsed.search_file_name,
                 &parsed.search_forward_from,
                 &search_reviewed_by,
                 &search_status,
                 parsed.search_size_min,
                 parsed.search_size_max,
-                &parsed.search_file_id,
+                &parsed.search_id,
                 &parsed.search_date_from,
                 &parsed.search_date_to,
                 &search_reviewed_date_from,
@@ -452,17 +407,16 @@ pub async fn done(
         .collect();
 
     let prev_href = (has_extra_filter && page > 1).then(|| {
-        build_tgfs_done_url(
+        build_done_url(
             page - 1,
             &parsed.search_user_id,
-            &parsed.search_bot_id,
             &parsed.search_file_name,
             &parsed.search_forward_from,
             &search_reviewed_by,
             &search_status,
             parsed.search_size_min,
             parsed.search_size_max,
-            &parsed.search_file_id,
+            &parsed.search_id,
             &parsed.search_date_from,
             &parsed.search_date_to,
             &search_reviewed_date_from,
@@ -471,17 +425,16 @@ pub async fn done(
         )
     });
     let next_href = (has_extra_filter && page < total_pages).then(|| {
-        build_tgfs_done_url(
+        build_done_url(
             page + 1,
             &parsed.search_user_id,
-            &parsed.search_bot_id,
             &parsed.search_file_name,
             &parsed.search_forward_from,
             &search_reviewed_by,
             &search_status,
             parsed.search_size_min,
             parsed.search_size_max,
-            &parsed.search_file_id,
+            &parsed.search_id,
             &parsed.search_date_from,
             &parsed.search_date_to,
             &search_reviewed_date_from,
@@ -490,18 +443,17 @@ pub async fn done(
         )
     });
 
-    let tmpl = TgfsDoneTemplate {
+    let tmpl = DoneTemplate {
         logged_in: true,
         username: session.username,
         flashes,
         files,
         search_user_id: parsed.search_user_id,
-        search_bot_id: parsed.search_bot_id,
         search_file_name: parsed.search_file_name,
         search_forward_from: parsed.search_forward_from,
         search_reviewed_by,
         search_status,
-        search_file_id: parsed.search_file_id,
+        search_id: parsed.search_id,
         search_size_min: parsed.search_size_min,
         search_size_max: parsed.search_size_max,
         size_filter_active: parsed.size_filter_active,
@@ -518,8 +470,8 @@ pub async fn done(
         prev_href,
         next_href,
         page_size,
-        show_plgb_nav: false,
-        show_tgfs_nav: true,
+        show_plgb_nav: true,
+        show_tgfs_nav: false,
     };
 
     (jar, render(tmpl))

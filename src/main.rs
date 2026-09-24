@@ -1,12 +1,7 @@
 mod auth;
-mod handlers;
-mod models;
-mod query_filters;
+mod link_list;
+mod link_review;
 mod state;
-mod tgfs_join;
-mod tgfs_models;
-mod tgfs_query_filters;
-mod tgfs_token;
 mod util;
 
 use axum::extract::{Query, Request, State};
@@ -28,6 +23,9 @@ use state::{build_state, AppState, TgfsState};
 
 /// URL prefix the whole app is served under, e.g. `https://host/link-review/review`.
 pub const BASE_PATH: &str = "/link-review";
+
+/// URL prefix for the public file-search section (no access key / login gate).
+pub const BASE_PATH_LIST: &str = "/link-list";
 
 /// Name of the cookie that remembers a successful `?key=` check.
 const ACCESS_COOKIE: &str = "link_access";
@@ -217,33 +215,40 @@ async fn main() {
     }
 
     let protected = Router::new()
-        .route("/", get(handlers::pages::index))
+        .route("/", get(link_review::handlers::pages::index))
         .route(
             "/login",
-            get(handlers::pages::login_get).post(handlers::pages::login_post),
+            get(link_review::handlers::pages::login_get).post(link_review::handlers::pages::login_post),
         )
-        .route("/logout", get(handlers::pages::logout))
-        .route("/home", get(handlers::pages::home))
-        .route("/tgfs", get(handlers::pages::tgfs))
-        .route("/instructions-plgb", get(handlers::pages::instructions))
-        .route("/review-plgb", get(handlers::plgb_review::review))
-        .route("/submit-plgb", post(handlers::plgb_review::submit))
-        .route("/done-plgb", get(handlers::plgb_done::done))
-        .route("/stats-plgb", get(handlers::plgb_stats::stats))
-        .route("/instructions-tgfs", get(handlers::pages::instructions_tgfs))
-        .route("/review-tgfs", get(handlers::tgfs_review::review))
-        .route("/submit-tgfs", post(handlers::tgfs_review::submit))
-        .route("/done-tgfs", get(handlers::tgfs_done::done))
-        .route("/stats-tgfs", get(handlers::tgfs_stats::stats))
+        .route("/logout", get(link_review::handlers::pages::logout))
+        .route("/home", get(link_review::handlers::pages::home))
+        .route("/tgfs", get(link_review::handlers::pages::tgfs))
+        .route("/instructions-plgb", get(link_review::handlers::pages::instructions))
+        .route("/review-plgb", get(link_review::handlers::plgb_review::review))
+        .route("/submit-plgb", post(link_review::handlers::plgb_review::submit))
+        .route("/done-plgb", get(link_review::handlers::plgb_done::done))
+        .route("/stats-plgb", get(link_review::handlers::plgb_stats::stats))
+        .route("/instructions-tgfs", get(link_review::handlers::pages::instructions_tgfs))
+        .route("/review-tgfs", get(link_review::handlers::tgfs_review::review))
+        .route("/submit-tgfs", post(link_review::handlers::tgfs_review::submit))
+        .route("/done-tgfs", get(link_review::handlers::tgfs_done::done))
+        .route("/stats-tgfs", get(link_review::handlers::tgfs_stats::stats))
         .nest_service("/static", ServeDir::new("static"))
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
             require_access_key,
         ));
 
+    // Public file-search section — no access key / login gate.
+    let link_list = Router::new()
+        .route("/", get(link_list::handlers::search))
+        .route("/file/{source}/{id}", get(link_list::handlers::file_detail))
+        .nest_service("/static", ServeDir::new("static/link-list"));
+
     let app = Router::new()
-        .route("/health", get(handlers::health::health))
+        .route("/health", get(link_review::handlers::health::health))
         .nest(BASE_PATH, protected)
+        .nest(BASE_PATH_LIST, link_list)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
 

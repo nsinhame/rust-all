@@ -29,6 +29,15 @@ in-process since they can't be `$lookup`-joined server-side (see
 - `/link-review/stats-tgfs` — dashboard with global + per-reviewer comparison, plus a per-bot "links generated" breakdown.
 - `/link-review/instructions-tgfs` — static help page covering the multi-bot/multi-DB differences from PLGB.
 
+A separate, fully public **`/link-list`** section (no access key, no login) lets anyone search
+both databases' already-accepted/public files by name and download/watch them:
+
+- `/link-list/` — a single minimal page: a search bar (dark/light mode switch, nothing else) that,
+  once you search, shows up to 10 result tiles per page (file-type icon, name, size) with
+  4-page-window + Prev/Next pagination.
+- `/link-list/file/{plgb|tgfs}/{id}` — a file detail page with Download/Watch buttons, reached by
+  clicking a tile.
+
 ## Project layout
 
 The old Flask app lives in `link-allow-page/` (gitignored, kept locally for reference only).
@@ -38,30 +47,42 @@ Everything below lives at the repository root:
 ├── Cargo.toml
 ├── Dockerfile
 ├── src/
-│   ├── main.rs               # entrypoint, router, default users, index creation, TGFS Mongo connect
-│   ├── state.rs               # AppState (Mongo collections, cookie key) + TgfsState
-│   ├── auth.rs                 # session/flash cookies, password hashing
-│   ├── models.rs               # BSON helpers + view models used by PLGB templates
-│   ├── query_filters.rs        # shared search-filter parsing (PLGB review/done)
-│   ├── util.rs                 # formatting helpers, template render helper
-│   ├── tgfs_models.rs           # TGFS view models (index+blob doc join into one card)
-│   ├── tgfs_query_filters.rs    # TGFS search-filter parsing (adds bot id, file id)
-│   ├── tgfs_join.rs              # cross-cluster index/blob join + sampling helpers
-│   ├── tgfs_token.rs              # HMAC dl/watch link signing (matches the Python bot)
-│   └── handlers/
-│       ├── pages.rs          # /, /login, /logout, /instructions-plgb, /instructions-tgfs
-│       ├── plgb_review.rs    # /review-plgb, /submit-plgb
-│       ├── plgb_done.rs      # /done-plgb
-│       ├── plgb_stats.rs     # /stats-plgb
-│       ├── tgfs_review.rs    # /review-tgfs, /submit-tgfs
-│       ├── tgfs_done.rs      # /done-tgfs
-│       └── tgfs_stats.rs     # /stats-tgfs
-├── templates/             # Askama (Jinja-like) templates, compiled into the binary
-└── static/style.css       # unchanged from the original app
+│   ├── main.rs                 # entrypoint, router (mounts link_review + link_list), TGFS Mongo connect
+│   ├── state.rs                # AppState (Mongo collections, cookie key) + TgfsState — shared by both sections
+│   ├── auth.rs                  # session/flash cookies, password hashing — used by link_review
+│   ├── util.rs                  # formatting helpers, template render helper — shared by both sections
+│   ├── link_review/             # everything behind the access-key-gated /link-review prefix
+│   │   ├── mod.rs
+│   │   ├── models.rs               # BSON helpers + view models used by PLGB templates
+│   │   ├── query_filters.rs        # shared search-filter parsing (PLGB review/done)
+│   │   ├── tgfs_models.rs           # TGFS view models (index+blob doc join into one card)
+│   │   ├── tgfs_query_filters.rs    # TGFS search-filter parsing (adds bot id, file id)
+│   │   ├── tgfs_join.rs              # cross-cluster index/blob join + sampling helpers
+│   │   ├── tgfs_token.rs              # HMAC dl/watch link signing (matches the Python bot)
+│   │   └── handlers/
+│   │       ├── pages.rs          # /, /login, /logout, /instructions-plgb, /instructions-tgfs
+│   │       ├── plgb_review.rs    # /review-plgb, /submit-plgb
+│   │       ├── plgb_done.rs      # /done-plgb
+│   │       ├── plgb_stats.rs     # /stats-plgb
+│   │       ├── tgfs_review.rs    # /review-tgfs, /submit-tgfs
+│   │       ├── tgfs_done.rs      # /done-tgfs
+│   │       └── tgfs_stats.rs     # /stats-tgfs
+│   └── link_list/                # the public, un-gated /link-list file-search section
+│       ├── mod.rs
+│       ├── models.rs                # ResultTile/FileDetail view models + mime/extension icon picker
+│       ├── search.rs                 # combined PLGB+TGFS file-name search
+│       └── handlers.rs                # /link-list/, /link-list/file/{source}/{id}
+├── templates/
+│   ├── link_review/          # base.html + all PLGB/TGFS review-system templates
+│   └── link_list/            # search.html, detail.html — standalone, don't extend base.html
+└── static/
+    ├── style.css              # link-review's stylesheet, unchanged from the original app
+    └── link-list/style.css    # link-list's own stylesheet (light/dark theme variables)
 ```
 
-All routes above are relative to the `/link-review` prefix defined once as `BASE_PATH` in
-`src/main.rs`, and referenced from templates via Askama's `{{ crate::BASE_PATH }}`.
+All `/link-review/*` routes are relative to the prefix defined as `BASE_PATH` in `src/main.rs`;
+`/link-list/*` routes use `BASE_PATH_LIST`. Both are referenced from templates via Askama's
+`{{ crate::BASE_PATH }}` / `{{ crate::BASE_PATH_LIST }}`.
 
 ## Local development
 

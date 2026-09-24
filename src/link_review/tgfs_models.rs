@@ -1,7 +1,7 @@
 use mongodb::bson::{oid::ObjectId, Bson, Document};
 
-use crate::models::{get_bool, get_i64, get_str};
-use crate::tgfs_token::{dl_url, watch_url};
+use crate::link_review::models::{get_bool, get_i64, get_str};
+use crate::link_review::tgfs_token::{dl_url, watch_url};
 use crate::util::format_ist;
 
 /// Reads the `_id` field of a `user_files` doc as an `ObjectId` (they're always

@@ -1,10 +1,10 @@
-{% extends "base.html" %}
+{% extends "link_review/base.html" %}
 
-{% block title %}TGFS Statistics{% endblock %}
+{% block title %}Statistics{% endblock %}
 
 {% block content %}
 <div class="stats-container">
-    <h2>TGFS Review Statistics Dashboard</h2>
+    <h2>Review Statistics Dashboard</h2>
 
     <!-- Stats Cards -->
     <div class="stats-grid">
@@ -23,13 +23,13 @@
         <div class="stat-card stat-accept">
             <div class="stat-icon">✓</div>
             <div class="stat-value">{{ public_fmt }}</div>
-            <div class="stat-label">Accepted</div>
+            <div class="stat-label">Public (Accepted)</div>
         </div>
 
         <div class="stat-card stat-reject">
             <div class="stat-icon">✗</div>
             <div class="stat-value">{{ private_fmt }}</div>
-            <div class="stat-label">Rejected</div>
+            <div class="stat-label">Private (Rejected)</div>
         </div>
 
         <div class="stat-card stat-card-teal">
@@ -158,36 +158,6 @@
         </div>
     </div>
 
-    <!-- Per-Bot Breakdown -->
-    <div class="reviewer-comparison-section">
-        <h3>Per-Bot Breakdown</h3>
-        <div class="chart-container">
-            <h4>Links Generated per Bot</h4>
-            {% if !bots.is_empty() %}
-            <div class="comparison-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Bot ID</th>
-                            <th>Links Generated</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for b in bots %}
-                        <tr>
-                            <td>{{ b.bot_id }}</td>
-                            <td>{{ b.count_fmt }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <p>No bot activity recorded yet.</p>
-            {% endif %}
-        </div>
-    </div>
-
     <!-- Reviewer Comparison Section -->
     <div class="reviewer-comparison-section">
         <!-- Comparison Charts -->
@@ -269,12 +239,67 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Detailed Comparison Table -->
+            <div class="chart-container">
+                <h4>Detailed Comparison</h4>
+                <div class="comparison-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Nik</th>
+                                <th>Prdp</th>
+                                <th>AI</th>
+                                <th>Difference (Nik-Prdp)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Total Reviews</td>
+                                <td>{{ nik.total_reviewed_fmt }}</td>
+                                <td>{{ prdp.total_reviewed_fmt }}</td>
+                                <td>{{ ai.total_reviewed_fmt }}</td>
+                                <td class="{{ total_diff_class }}">{{ total_diff }}</td>
+                            </tr>
+                            <tr>
+                                <td>Accepted</td>
+                                <td>{{ nik.accepted_fmt }}</td>
+                                <td>{{ prdp.accepted_fmt }}</td>
+                                <td>{{ ai.accepted_fmt }}</td>
+                                <td class="{{ accepted_diff_class }}">{{ accepted_diff }}</td>
+                            </tr>
+                            <tr>
+                                <td>Rejected</td>
+                                <td>{{ nik.rejected_fmt }}</td>
+                                <td>{{ prdp.rejected_fmt }}</td>
+                                <td>{{ ai.rejected_fmt }}</td>
+                                <td class="{{ rejected_diff_class }}">{{ rejected_diff }}</td>
+                            </tr>
+                            <tr>
+                                <td>Acceptance Rate</td>
+                                <td>{{ nik.acceptance_rate_fmt }}%</td>
+                                <td>{{ prdp.acceptance_rate_fmt }}%</td>
+                                <td>{{ ai.acceptance_rate_fmt }}%</td>
+                                <td class="{{ rate_diff_class }}">{{ rate_diff_fmt }}%</td>
+                            </tr>
+                            <tr>
+                                <td>Contribution to Total</td>
+                                <td>{{ nik.contribution_fmt }}%</td>
+                                <td>{{ prdp.contribution_fmt }}%</td>
+                                <td>{{ ai.contribution_fmt }}%</td>
+                                <td>-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="action-section">
         {% if pending > 0 %}
-            <a href="{{ crate::BASE_PATH }}/review-tgfs" class="btn btn-primary btn-large">
+            <a href="{{ crate::BASE_PATH }}/review-plgb" class="btn btn-primary btn-large">
                 Continue Reviewing ({{ pending_fmt }} pending)
             </a>
         {% else %}
