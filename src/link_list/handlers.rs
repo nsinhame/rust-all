@@ -149,6 +149,14 @@ pub async fn search(State(state): State<AppState>, jar: PrivateCookieJar, Query(
     render(tmpl)
 }
 
+/// Review-tool dl/watch links carry a `/a/` marker so the ad-serving load balancer
+/// lets admins bypass ads. Public link-list visitors aren't admins, so strip it.
+fn strip_admin_marker(url: String) -> String {
+    url.replacen("/dl/a/", "/dl/", 1)
+        .replacen("/watch/a/", "/watch/", 1)
+        .replacen("/wt/a/", "/wt/", 1)
+}
+
 #[derive(Template)]
 #[template(path = "link_list/detail.html")]
 struct DetailTemplate {
@@ -177,8 +185,8 @@ pub async fn file_detail(Path(token): Path<String>, State(state): State<AppState
                 file_name: card.file_name,
                 file_size_fmt: card.file_size,
                 mime_type: card.mime_type,
-                dl_url: card.dl_url,
-                watch_url: card.watch_url,
+                dl_url: strip_admin_marker(card.dl_url),
+                watch_url: strip_admin_marker(card.watch_url),
             }
         }
         Source::Tgfs { cluster_idx } => {
@@ -213,8 +221,8 @@ pub async fn file_detail(Path(token): Path<String>, State(state): State<AppState
                 file_name: card.file_name,
                 file_size_fmt: card.file_size,
                 mime_type: card.mime_type,
-                dl_url: card.dl_url,
-                watch_url: card.watch_url,
+                dl_url: strip_admin_marker(card.dl_url),
+                watch_url: strip_admin_marker(card.watch_url),
             }
         }
     };
