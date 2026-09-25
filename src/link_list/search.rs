@@ -14,11 +14,22 @@ use crate::util::regex_escape;
 /// for the equivalent tradeoff already made on the review side.
 const CANDIDATE_LIMIT: i64 = 150;
 
+/// Builds the `file_name` half of a search filter requiring every whitespace-separated
+/// word in `query` to appear somewhere in the name, in any order — matching how the
+/// review system's own "File Name" advanced-search field behaves (see
+/// `link_review::query_filters::parse_filters`), instead of requiring the whole query
+/// to appear as one literal substring in that exact order.
+fn file_name_word_conditions(query: &str) -> Vec<Document> {
+    query
+        .split_whitespace()
+        .map(|word| doc! { "file_name": { "$regex": regex_escape(word), "$options": "i" } })
+        .collect()
+}
+
 async fn search_plgb(state: &AppState, query: &str) -> Vec<ResultTile> {
-    let filter = doc! {
-        "is_public": true,
-        "file_name": { "$regex": regex_escape(query), "$options": "i" },
-    };
+    let mut conditions = vec![doc! { "is_public": true }];
+    conditions.extend(file_name_word_conditions(query));
+    let filter = doc! { "$and": conditions };
     let docs: Vec<Document> = match state.files.find(filter).limit(CANDIDATE_LIMIT).await {
         Ok(cursor) => cursor.try_collect().await.unwrap_or_default(),
         Err(err) => {
@@ -42,7 +53,7 @@ async fn search_plgb(state: &AppState, query: &str) -> Vec<ResultTile> {
 }
 
 async fn search_tgfs(state: &AppState, query: &str) -> Vec<ResultTile> {
-    let filter = doc! { "file_name": { "$regex": regex_escape(query), "$options": "i" } };
+    let filter = doc! { "$and": file_name_word_conditions(query) };
     let mut candidates: Vec<(usize, Document)> = Vec::new();
     for (i, coll) in state.tgfs.index_colls.iter().enumerate() {
         let docs: Vec<Document> = match coll.find(filter.clone()).limit(CANDIDATE_LIMIT).await {
