@@ -1,17 +1,14 @@
 /// One result tile shown on the `/link-list` search page.
 #[derive(Clone)]
 pub struct ResultTile {
-    /// `"plgb"` or `"tgfs"` — which database the file came from, used to build the detail link.
-    pub source: &'static str,
-    /// Opaque id used in `/link-list/file/{source}/{id}` (ObjectId hex for PLGB,
-    /// `"{cluster}:{objectid_hex}"` entry id for TGFS).
-    pub detail_id: String,
+    /// Opaque, HMAC-signed token used in `/link-list/file/{token}` — see `link_list::token`.
+    pub token: String,
     pub file_name: String,
     pub file_size_fmt: String,
     pub icon: &'static str,
 }
 
-/// Full detail shown on the `/link-list/file/{source}/{id}` page.
+/// Full detail shown on the `/link-list/file/{token}` page.
 #[derive(Clone)]
 pub struct FileDetail {
     pub file_name: String,

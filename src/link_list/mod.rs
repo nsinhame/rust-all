@@ -4,3 +4,4 @@
 pub mod handlers;
 pub mod models;
 pub mod search;
+pub mod token;

@@ -2,15 +2,15 @@ use askama::Template;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use mongodb::bson::oid::ObjectId;
 use mongodb::bson::doc;
 use serde::Deserialize;
 
 use crate::link_list::models::{icon_for, FileDetail, ResultTile};
 use crate::link_list::search::combined_search;
+use crate::link_list::token::{decode_token, Source};
 use crate::link_review::models::{get_bool, get_i64, FileCard};
 use crate::link_review::tgfs_join;
-use crate::link_review::tgfs_models::{decode_entry_id, TgfsFileCard};
+use crate::link_review::tgfs_models::TgfsFileCard;
 use crate::state::AppState;
 use crate::util::{commas, render, url_encode};
 
@@ -128,16 +128,18 @@ struct DetailTemplate {
     back_href: String,
 }
 
-/// Looks up one file by `(source, id)` and renders its detail/download page, or a
-/// bare 404 if it doesn't exist or isn't an already-accepted/public file.
-pub async fn file_detail(Path((source, id)): Path<(String, String)>, State(state): State<AppState>) -> Response {
+/// Looks up one file by its opaque `token` (see `link_list::token`) and renders its
+/// detail/download page, or a bare 404 if it doesn't exist, isn't an already-accepted
+/// /public file, or the token fails signature verification (e.g. tampered with).
+pub async fn file_detail(Path(token): Path<String>, State(state): State<AppState>) -> Response {
     let not_found = || (StatusCode::NOT_FOUND, "Not Found").into_response();
 
-    let detail = match source.as_str() {
-        "plgb" => {
-            let Ok(oid) = ObjectId::parse_str(&id) else {
-                return not_found();
-            };
+    let Some((source, oid)) = decode_token(state.access_key.as_bytes(), &token) else {
+        return not_found();
+    };
+
+    let detail = match source {
+        Source::Plgb => {
             let Ok(Some(doc)) = state.files.find_one(doc! { "_id": oid, "is_public": true }).await else {
                 return not_found();
             };
@@ -151,10 +153,8 @@ pub async fn file_detail(Path((source, id)): Path<(String, String)>, State(state
                 watch_url: card.watch_url,
             }
         }
-        "tgfs" => {
-            let Some((cluster_idx, oid)) = decode_entry_id(&id) else {
-                return not_found();
-            };
+        Source::Tgfs { cluster_idx } => {
+            let cluster_idx = cluster_idx as usize;
             let Some(index_coll) = state.tgfs.index_colls.get(cluster_idx) else {
                 return not_found();
             };
@@ -189,7 +189,6 @@ pub async fn file_detail(Path((source, id)): Path<(String, String)>, State(state
                 watch_url: card.watch_url,
             }
         }
-        _ => return not_found(),
     };
 
     render(DetailTemplate {

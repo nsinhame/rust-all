@@ -1,10 +1,12 @@
 use futures_util::TryStreamExt;
+use mongodb::bson::oid::ObjectId;
 use mongodb::bson::{doc, Document};
 
 use crate::link_review::models::{get_bool, get_i64, FileCard};
 use crate::link_review::tgfs_join;
-use crate::link_review::tgfs_models::TgfsFileCard;
+use crate::link_review::tgfs_models::{decode_entry_id, TgfsFileCard};
 use crate::link_list::models::{icon_for, ResultTile};
+use crate::link_list::token::{encode_token, Source};
 use crate::state::AppState;
 use crate::util::regex_escape;
 
@@ -39,15 +41,15 @@ async fn search_plgb(state: &AppState, query: &str) -> Vec<ResultTile> {
     };
 
     docs.iter()
-        .map(|d| {
+        .filter_map(|d| {
             let card = FileCard::from_doc(d, 0, &state.fqdn);
-            ResultTile {
-                source: "plgb",
-                detail_id: card.id,
+            let oid = ObjectId::parse_str(&card.id).ok()?;
+            Some(ResultTile {
+                token: encode_token(state.access_key.as_bytes(), Source::Plgb, oid),
                 icon: icon_for(&card.mime_type, &card.file_name),
                 file_name: card.file_name,
                 file_size_fmt: card.file_size,
-            }
+            })
         })
         .collect()
 }
@@ -89,9 +91,13 @@ async fn search_tgfs(state: &AppState, query: &str) -> Vec<ResultTile> {
                 &state.tgfs.link_secret,
                 &state.tgfs.public_url,
             );
+            let (cluster_idx, oid) = decode_entry_id(&card.entry_id)?;
             Some(ResultTile {
-                source: "tgfs",
-                detail_id: card.entry_id,
+                token: encode_token(
+                    state.access_key.as_bytes(),
+                    Source::Tgfs { cluster_idx: cluster_idx as u8 },
+                    oid,
+                ),
                 icon: icon_for(&card.mime_type, &card.file_name),
                 file_name: card.file_name,
                 file_size_fmt: card.file_size,

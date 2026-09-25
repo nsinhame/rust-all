@@ -36,7 +36,7 @@
             <p class="results-summary">{{ total_results_fmt }} result(s) for "{{ query }}"</p>
             <div class="tile-grid">
                 {% for tile in tiles %}
-                <a class="tile" href="{{ crate::BASE_PATH_LIST }}/file/{{ tile.source }}/{{ tile.detail_id }}">
+                <a class="tile" href="{{ crate::BASE_PATH_LIST }}/file/{{ tile.token }}">
                     <div class="tile-icon">{{ tile.icon }}</div>
                     <div class="tile-info">
                         <div class="tile-name" title="{{ tile.file_name }}">{{ tile.file_name }}</div>
