@@ -14,7 +14,8 @@ use crate::link_review::tgfs_models::{decode_entry_id, TgfsFileCard};
 use crate::state::AppState;
 use crate::util::{commas, render, url_encode};
 
-const PAGE_SIZE: i64 = 10;
+const PAGE_SIZE_MOBILE: i64 = 15;
+const PAGE_SIZE_DESKTOP: i64 = 30;
 const PAGE_WINDOW: i64 = 4;
 
 pub struct PageLink {
@@ -29,6 +30,9 @@ pub struct SearchQuery {
     pub q: String,
     #[serde(default)]
     pub page: String,
+    /// Set client-side (window width) so mobile gets fewer, desktop gets more per page.
+    #[serde(default)]
+    pub page_size: String,
 }
 
 #[derive(Template)]
@@ -42,10 +46,17 @@ struct SearchTemplate {
     pages: Vec<PageLink>,
     prev_href: Option<String>,
     next_href: Option<String>,
+    page_size: i64,
 }
 
-fn build_search_url(query: &str, page: i64) -> String {
-    format!("{}?q={}&page={}", crate::BASE_PATH_LIST, url_encode(query), page)
+fn build_search_url(query: &str, page: i64, page_size: i64) -> String {
+    format!(
+        "{}?q={}&page={}&page_size={}",
+        crate::BASE_PATH_LIST,
+        url_encode(query),
+        page,
+        page_size
+    )
 }
 
 /// Renders the single `/link-list` page: just the search bar when `?q=` is empty,
@@ -53,6 +64,10 @@ fn build_search_url(query: &str, page: i64) -> String {
 pub async fn search(State(state): State<AppState>, Query(q): Query<SearchQuery>) -> Response {
     let query = q.q.trim().to_string();
     let has_query = !query.is_empty();
+    let page_size = match q.page_size.trim().parse::<i64>() {
+        Ok(PAGE_SIZE_DESKTOP) => PAGE_SIZE_DESKTOP,
+        _ => PAGE_SIZE_MOBILE,
+    };
 
     let all_results = if has_query {
         combined_search(&state, &query).await
@@ -62,15 +77,15 @@ pub async fn search(State(state): State<AppState>, Query(q): Query<SearchQuery>)
 
     let total_results = all_results.len() as i64;
     let total_pages = if has_query {
-        ((total_results + PAGE_SIZE - 1) / PAGE_SIZE).max(1)
+        ((total_results + page_size - 1) / page_size).max(1)
     } else {
         1
     };
     let mut page: i64 = q.page.trim().parse().unwrap_or(1);
     page = page.clamp(1, total_pages);
 
-    let start = ((page - 1) * PAGE_SIZE) as usize;
-    let end = (start + PAGE_SIZE as usize).min(all_results.len());
+    let start = ((page - 1) * page_size) as usize;
+    let end = (start + page_size as usize).min(all_results.len());
     let tiles = if start < all_results.len() {
         all_results[start..end].to_vec()
     } else {
@@ -84,12 +99,12 @@ pub async fn search(State(state): State<AppState>, Query(q): Query<SearchQuery>)
     let pages: Vec<PageLink> = (window_start..=window_end)
         .map(|p| PageLink {
             number: p,
-            href: build_search_url(&query, p),
+            href: build_search_url(&query, p, page_size),
             active: p == page,
         })
         .collect();
-    let prev_href = (has_query && page > 1).then(|| build_search_url(&query, page - 1));
-    let next_href = (has_query && page < total_pages).then(|| build_search_url(&query, page + 1));
+    let prev_href = (has_query && page > 1).then(|| build_search_url(&query, page - 1, page_size));
+    let next_href = (has_query && page < total_pages).then(|| build_search_url(&query, page + 1, page_size));
 
     let tmpl = SearchTemplate {
         query,
@@ -100,6 +115,7 @@ pub async fn search(State(state): State<AppState>, Query(q): Query<SearchQuery>)
         pages,
         prev_href,
         next_href,
+        page_size,
     };
 
     render(tmpl)

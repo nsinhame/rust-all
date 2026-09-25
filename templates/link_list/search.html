@@ -26,6 +26,7 @@
                 autocomplete="off"
                 autofocus
             >
+            <input type="hidden" name="page_size" id="pageSizeInput" value="{{ page_size }}">
             <button type="submit" class="search-btn" aria-label="Search">🔍</button>
         </form>
 
@@ -77,6 +78,17 @@
         const theme = toggle.checked ? 'dark' : 'light';
         root.setAttribute('data-theme', theme);
         localStorage.setItem('link_list_theme', theme);
+    });
+
+    // Shows more results per page on wider (laptop/desktop) screens — matches the
+    // tile-layout breakpoint in style.css. Read at submit time so resizing the
+    // window before searching still picks the right count.
+    const DESKTOP_BREAKPOINT = 700;
+    const pageSizeInput = document.getElementById('pageSizeInput');
+    const resolvePageSize = () => (window.innerWidth >= DESKTOP_BREAKPOINT ? 30 : 15);
+    pageSizeInput.value = resolvePageSize();
+    document.querySelector('.search-bar').addEventListener('submit', () => {
+        pageSizeInput.value = resolvePageSize();
     });
 </script>
 </body>
