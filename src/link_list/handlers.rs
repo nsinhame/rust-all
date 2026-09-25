@@ -1,9 +1,10 @@
 use askama::Template;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Form, Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
+use axum_extra::extract::cookie::{Cookie, PrivateCookieJar};
 use mongodb::bson::doc;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::link_list::models::{icon_for, FileDetail, ResultTile};
 use crate::link_list::search::combined_search;
@@ -12,11 +13,15 @@ use crate::link_review::models::{get_bool, get_i64, FileCard};
 use crate::link_review::tgfs_join;
 use crate::link_review::tgfs_models::TgfsFileCard;
 use crate::state::AppState;
-use crate::util::{commas, render, url_encode};
+use crate::util::{commas, render};
 
 const PAGE_SIZE_MOBILE: i64 = 15;
 const PAGE_SIZE_DESKTOP: i64 = 30;
 const PAGE_WINDOW: i64 = 4;
+/// Cookie holding the current search (query + resolved page size), kept out of the
+/// URL entirely so it doesn't show up in the address bar/history. Encrypted via the
+/// same `PrivateCookieJar`/`cookie_key` the review-system's session cookie uses.
+const SEARCH_COOKIE: &str = "link_list_search";
 
 pub struct PageLink {
     pub number: i64,
@@ -24,15 +29,25 @@ pub struct PageLink {
     pub active: bool,
 }
 
+#[derive(Serialize, Deserialize, Default)]
+struct SearchState {
+    query: String,
+    page_size: i64,
+}
+
 #[derive(Deserialize, Default)]
-pub struct SearchQuery {
+pub struct SubmitSearchForm {
     #[serde(default)]
     pub q: String,
-    #[serde(default)]
-    pub page: String,
     /// Set client-side (window width) so mobile gets fewer, desktop gets more per page.
     #[serde(default)]
     pub page_size: String,
+}
+
+#[derive(Deserialize, Default)]
+pub struct SearchQuery {
+    #[serde(default)]
+    pub page: String,
 }
 
 #[derive(Template)]
@@ -49,23 +64,36 @@ struct SearchTemplate {
     page_size: i64,
 }
 
-fn build_search_url(query: &str, page: i64, page_size: i64) -> String {
-    format!(
-        "{}?q={}&page={}&page_size={}",
-        crate::BASE_PATH_LIST,
-        url_encode(query),
-        page,
-        page_size
-    )
+fn build_search_url(page: i64) -> String {
+    format!("{}?page={}", crate::BASE_PATH_LIST, page)
 }
 
-/// Renders the single `/link-list` page: just the search bar when `?q=` is empty,
-/// plus the result tiles/pagination once a search has been run.
-pub async fn search(State(state): State<AppState>, Query(q): Query<SearchQuery>) -> Response {
-    let query = q.q.trim().to_string();
-    let has_query = !query.is_empty();
-    let page_size = match q.page_size.trim().parse::<i64>() {
+/// Stores the submitted search (query + client-resolved page size) in an encrypted
+/// cookie instead of a `?q=` URL param, then redirects to the plain results page —
+/// keeps the search term out of the address bar, browser history, and any logs.
+pub async fn submit_search(jar: PrivateCookieJar, Form(form): Form<SubmitSearchForm>) -> impl IntoResponse {
+    let query = form.q.trim().to_string();
+    let page_size = match form.page_size.trim().parse::<i64>() {
         Ok(PAGE_SIZE_DESKTOP) => PAGE_SIZE_DESKTOP,
+        _ => PAGE_SIZE_MOBILE,
+    };
+    let value = serde_json::to_string(&SearchState { query, page_size }).unwrap_or_default();
+    let jar = jar.add(Cookie::build((SEARCH_COOKIE, value)).path(crate::BASE_PATH_LIST).http_only(true));
+    (jar, Redirect::to(crate::BASE_PATH_LIST))
+}
+
+/// Renders the single `/link-list` page: just the search bar when there's no saved
+/// search, plus the result tiles/pagination once one has been submitted. The search
+/// term itself comes from the `SEARCH_COOKIE`, not the URL — only the page number is.
+pub async fn search(State(state): State<AppState>, jar: PrivateCookieJar, Query(q): Query<SearchQuery>) -> Response {
+    let saved: SearchState = jar
+        .get(SEARCH_COOKIE)
+        .and_then(|c| serde_json::from_str(c.value()).ok())
+        .unwrap_or_default();
+    let query = saved.query;
+    let has_query = !query.is_empty();
+    let page_size = match saved.page_size {
+        PAGE_SIZE_DESKTOP => PAGE_SIZE_DESKTOP,
         _ => PAGE_SIZE_MOBILE,
     };
 
@@ -99,12 +127,12 @@ pub async fn search(State(state): State<AppState>, Query(q): Query<SearchQuery>)
     let pages: Vec<PageLink> = (window_start..=window_end)
         .map(|p| PageLink {
             number: p,
-            href: build_search_url(&query, p, page_size),
+            href: build_search_url(p),
             active: p == page,
         })
         .collect();
-    let prev_href = (has_query && page > 1).then(|| build_search_url(&query, page - 1, page_size));
-    let next_href = (has_query && page < total_pages).then(|| build_search_url(&query, page + 1, page_size));
+    let prev_href = (has_query && page > 1).then(|| build_search_url(page - 1));
+    let next_href = (has_query && page < total_pages).then(|| build_search_url(page + 1));
 
     let tmpl = SearchTemplate {
         query,

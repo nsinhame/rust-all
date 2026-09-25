@@ -242,6 +242,7 @@ async fn main() {
     // Public file-search section — no access key / login gate.
     let link_list = Router::new()
         .route("/", get(link_list::handlers::search))
+        .route("/search", post(link_list::handlers::submit_search))
         .route("/file/{token}", get(link_list::handlers::file_detail))
         .nest_service("/static", ServeDir::new("static/link-list"));
 
