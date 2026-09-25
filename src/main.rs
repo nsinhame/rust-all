@@ -24,7 +24,7 @@ use state::{build_state, AppState, TgfsState};
 /// URL prefix the whole app is served under, e.g. `https://host/link-review/review`.
 pub const BASE_PATH: &str = "/link-review";
 
-/// URL prefix for the public file-search section (no access key / login gate).
+/// URL prefix for the file-search section. Gated by the same access key as [`BASE_PATH`].
 pub const BASE_PATH_LIST: &str = "/link-list";
 
 /// Name of the cookie that remembers a successful `?key=` check.
@@ -147,8 +147,9 @@ async fn build_tgfs_state() -> TgfsState {
     }
 }
 
-/// Gate for everything under [`BASE_PATH`]: requires a valid `link_access` cookie, or a
-/// `?key=` query parameter matching `ACCESS_KEY`, in which case the cookie is then granted.
+/// Gate for everything under [`BASE_PATH`] and [`BASE_PATH_LIST`]: requires a valid
+/// `link_access` cookie, or a `?key=` query parameter matching `ACCESS_KEY`, in which
+/// case the cookie is then granted (scoped app-wide so it covers both sections).
 async fn require_access_key(
     State(state): State<AppState>,
     jar: PrivateCookieJar,
@@ -168,7 +169,7 @@ async fn require_access_key(
         let response = next.run(request).await;
         let jar = PrivateCookieJar::new(state.cookie_key.clone()).add(
             Cookie::build((ACCESS_COOKIE, state.access_key.clone()))
-                .path(BASE_PATH)
+                .path("/")
                 .http_only(true),
         );
         return (jar, response).into_response();
@@ -239,12 +240,16 @@ async fn main() {
             require_access_key,
         ));
 
-    // Public file-search section — no access key / login gate.
+    // File-search section — gated by the same access key as `protected` above.
     let link_list = Router::new()
         .route("/", get(link_list::handlers::search))
         .route("/search", post(link_list::handlers::submit_search))
         .route("/file/{token}", get(link_list::handlers::file_detail))
-        .nest_service("/static", ServeDir::new("static/link-list"));
+        .nest_service("/static", ServeDir::new("static/link-list"))
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            require_access_key,
+        ));
 
     let app = Router::new()
         .route("/health", get(link_review::handlers::health::health))
