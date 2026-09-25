@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ detail.file_name }} — File Search</title>
-<link rel="stylesheet" href="{{ crate::BASE_PATH_LIST }}/static/style.css">
+<link rel="stylesheet" href="{{ crate::BASE_PATH_FILE_SEARCH }}/static/style.css">
 </head>
 <body>
     <div class="topbar">
@@ -34,7 +34,7 @@
 <script>
     const root = document.documentElement;
     const toggle = document.getElementById('themeToggle');
-    const stored = localStorage.getItem('link_list_theme');
+    const stored = localStorage.getItem('file_search_theme');
     const initial = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     root.setAttribute('data-theme', initial);
     toggle.checked = initial === 'dark';
@@ -42,7 +42,7 @@
     toggle.addEventListener('change', () => {
         const theme = toggle.checked ? 'dark' : 'light';
         root.setAttribute('data-theme', theme);
-        localStorage.setItem('link_list_theme', theme);
+        localStorage.setItem('file_search_theme', theme);
     });
 </script>
 </body>

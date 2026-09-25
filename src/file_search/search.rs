@@ -5,8 +5,8 @@ use mongodb::bson::{doc, Document};
 use crate::link_review::models::{get_bool, get_i64, FileCard};
 use crate::link_review::tgfs_join;
 use crate::link_review::tgfs_models::{decode_entry_id, TgfsFileCard};
-use crate::link_list::models::{icon_for, ResultTile};
-use crate::link_list::token::{encode_token, Source};
+use crate::file_search::models::{icon_for, ResultTile};
+use crate::file_search::token::{encode_token, Source};
 use crate::state::AppState;
 use crate::util::regex_escape;
 
@@ -35,7 +35,7 @@ async fn search_plgb(state: &AppState, query: &str) -> Vec<ResultTile> {
     let docs: Vec<Document> = match state.files.find(filter).limit(CANDIDATE_LIMIT).await {
         Ok(cursor) => cursor.try_collect().await.unwrap_or_default(),
         Err(err) => {
-            tracing::error!("link-list plgb search error: {err}");
+            tracing::error!("file-search plgb search error: {err}");
             Vec::new()
         }
     };
@@ -61,7 +61,7 @@ async fn search_tgfs(state: &AppState, query: &str) -> Vec<ResultTile> {
         let docs: Vec<Document> = match coll.find(filter.clone()).limit(CANDIDATE_LIMIT).await {
             Ok(cursor) => cursor.try_collect().await.unwrap_or_default(),
             Err(err) => {
-                tracing::error!("link-list tgfs search error (cluster {i}): {err}");
+                tracing::error!("file-search tgfs search error (cluster {i}): {err}");
                 Vec::new()
             }
         };

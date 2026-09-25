@@ -6,9 +6,9 @@ use axum_extra::extract::cookie::{Cookie, PrivateCookieJar};
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 
-use crate::link_list::models::{icon_for, FileDetail, ResultTile};
-use crate::link_list::search::combined_search;
-use crate::link_list::token::{decode_token, Source};
+use crate::file_search::models::{icon_for, FileDetail, ResultTile};
+use crate::file_search::search::combined_search;
+use crate::file_search::token::{decode_token, Source};
 use crate::link_review::models::{get_bool, get_i64, FileCard};
 use crate::link_review::tgfs_join;
 use crate::link_review::tgfs_models::TgfsFileCard;
@@ -21,7 +21,7 @@ const PAGE_WINDOW: i64 = 4;
 /// Cookie holding the current search (query + resolved page size), kept out of the
 /// URL entirely so it doesn't show up in the address bar/history. Encrypted via the
 /// same `PrivateCookieJar`/`cookie_key` the review-system's session cookie uses.
-const SEARCH_COOKIE: &str = "link_list_search";
+const SEARCH_COOKIE: &str = "file_search_state";
 
 pub struct PageLink {
     pub number: i64,
@@ -51,7 +51,7 @@ pub struct SearchQuery {
 }
 
 #[derive(Template)]
-#[template(path = "link_list/search.html")]
+#[template(path = "file_search/search.html")]
 struct SearchTemplate {
     query: String,
     has_query: bool,
@@ -65,7 +65,7 @@ struct SearchTemplate {
 }
 
 fn build_search_url(page: i64) -> String {
-    format!("{}?page={}", crate::BASE_PATH_LIST, page)
+    format!("{}?page={}", crate::BASE_PATH_FILE_SEARCH, page)
 }
 
 /// Stores the submitted search (query + client-resolved page size) in an encrypted
@@ -78,11 +78,11 @@ pub async fn submit_search(jar: PrivateCookieJar, Form(form): Form<SubmitSearchF
         _ => PAGE_SIZE_MOBILE,
     };
     let value = serde_json::to_string(&SearchState { query, page_size }).unwrap_or_default();
-    let jar = jar.add(Cookie::build((SEARCH_COOKIE, value)).path(crate::BASE_PATH_LIST).http_only(true));
-    (jar, Redirect::to(crate::BASE_PATH_LIST))
+    let jar = jar.add(Cookie::build((SEARCH_COOKIE, value)).path(crate::BASE_PATH_FILE_SEARCH).http_only(true));
+    (jar, Redirect::to(crate::BASE_PATH_FILE_SEARCH))
 }
 
-/// Renders the single `/link-list` page: just the search bar when there's no saved
+/// Renders the single `/file-search` page: just the search bar when there's no saved
 /// search, plus the result tiles/pagination once one has been submitted. The search
 /// term itself comes from the `SEARCH_COOKIE`, not the URL — only the page number is.
 pub async fn search(State(state): State<AppState>, jar: PrivateCookieJar, Query(q): Query<SearchQuery>) -> Response {
@@ -150,7 +150,7 @@ pub async fn search(State(state): State<AppState>, jar: PrivateCookieJar, Query(
 }
 
 /// Review-tool dl/watch links carry a `/a/` marker so the ad-serving load balancer
-/// lets admins bypass ads. Public link-list visitors aren't admins, so strip it.
+/// lets admins bypass ads. Public file-search visitors aren't admins, so strip it.
 fn strip_admin_marker(url: String) -> String {
     url.replacen("/dl/a/", "/dl/", 1)
         .replacen("/watch/a/", "/watch/", 1)
@@ -158,13 +158,13 @@ fn strip_admin_marker(url: String) -> String {
 }
 
 #[derive(Template)]
-#[template(path = "link_list/detail.html")]
+#[template(path = "file_search/detail.html")]
 struct DetailTemplate {
     detail: FileDetail,
     back_href: String,
 }
 
-/// Looks up one file by its opaque `token` (see `link_list::token`) and renders its
+/// Looks up one file by its opaque `token` (see `file_search::token`) and renders its
 /// detail/download page, or a bare 404 if it doesn't exist, isn't an already-accepted
 /// /public file, or the token fails signature verification (e.g. tampered with).
 pub async fn file_detail(Path(token): Path<String>, State(state): State<AppState>) -> Response {
@@ -229,6 +229,6 @@ pub async fn file_detail(Path(token): Path<String>, State(state): State<AppState
 
     render(DetailTemplate {
         detail,
-        back_href: crate::BASE_PATH_LIST.to_string(),
+        back_href: crate::BASE_PATH_FILE_SEARCH.to_string(),
     })
 }

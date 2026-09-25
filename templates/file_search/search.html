@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>File Search</title>
-<link rel="stylesheet" href="{{ crate::BASE_PATH_LIST }}/static/style.css">
+<link rel="stylesheet" href="{{ crate::BASE_PATH_FILE_SEARCH }}/static/style.css">
 </head>
 <body>
     <div class="topbar">
@@ -16,7 +16,7 @@
 
     <main class="search-page">
         <h1 class="brand">🔎 File Search</h1>
-        <form method="POST" action="{{ crate::BASE_PATH_LIST }}/search" class="search-bar">
+        <form method="POST" action="{{ crate::BASE_PATH_FILE_SEARCH }}/search" class="search-bar">
             <input
                 type="text"
                 name="q"
@@ -36,7 +36,7 @@
             <p class="results-summary">{{ total_results_fmt }} result(s) for "{{ query }}"</p>
             <div class="tile-grid">
                 {% for tile in tiles %}
-                <a class="tile" href="{{ crate::BASE_PATH_LIST }}/file/{{ tile.token }}">
+                <a class="tile" href="{{ crate::BASE_PATH_FILE_SEARCH }}/file/{{ tile.token }}">
                     <div class="tile-icon">{{ tile.icon }}</div>
                     <div class="tile-info">
                         <div class="tile-name" title="{{ tile.file_name }}">{{ tile.file_name }}</div>
@@ -69,7 +69,7 @@
 <script>
     const root = document.documentElement;
     const toggle = document.getElementById('themeToggle');
-    const stored = localStorage.getItem('link_list_theme');
+    const stored = localStorage.getItem('file_search_theme');
     const initial = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     root.setAttribute('data-theme', initial);
     toggle.checked = initial === 'dark';
@@ -77,7 +77,7 @@
     toggle.addEventListener('change', () => {
         const theme = toggle.checked ? 'dark' : 'light';
         root.setAttribute('data-theme', theme);
-        localStorage.setItem('link_list_theme', theme);
+        localStorage.setItem('file_search_theme', theme);
     });
 
     // Shows more results per page on wider (laptop/desktop) screens — matches the

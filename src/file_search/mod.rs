@@ -1,4 +1,4 @@
-//! The public `/link-list` file-search section — no access key or reviewer login,
+//! The `/file-search` section — gated by the same access key as `link_review`,
 //! searches PLGB + TGFS's already-accepted files/links by file name.
 
 pub mod handlers;

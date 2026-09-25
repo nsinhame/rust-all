@@ -7,7 +7,7 @@ use sha2::Sha256;
 const SOURCE_PLGB: u8 = 0;
 const SOURCE_TGFS: u8 = 1;
 
-/// Which database a `/link-list/file/{token}` link points at, plus whatever else is
+/// Which database a `/file-search/file/{token}` link points at, plus whatever else is
 /// needed to look the file back up (the TGFS index cluster).
 pub enum Source {
     Plgb,

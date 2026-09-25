@@ -1,14 +1,14 @@
-/// One result tile shown on the `/link-list` search page.
+/// One result tile shown on the `/file-search` search page.
 #[derive(Clone)]
 pub struct ResultTile {
-    /// Opaque, HMAC-signed token used in `/link-list/file/{token}` — see `link_list::token`.
+    /// Opaque, HMAC-signed token used in `/file-search/file/{token}` — see `file_search::token`.
     pub token: String,
     pub file_name: String,
     pub file_size_fmt: String,
     pub icon: &'static str,
 }
 
-/// Full detail shown on the `/link-list/file/{token}` page.
+/// Full detail shown on the `/file-search/file/{token}` page.
 #[derive(Clone)]
 pub struct FileDetail {
     pub file_name: String,

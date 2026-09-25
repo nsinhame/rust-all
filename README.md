@@ -29,14 +29,16 @@ in-process since they can't be `$lookup`-joined server-side (see
 - `/link-review/stats-tgfs` — dashboard with global + per-reviewer comparison, plus a per-bot "links generated" breakdown.
 - `/link-review/instructions-tgfs` — static help page covering the multi-bot/multi-DB differences from PLGB.
 
-A separate, fully public **`/link-list`** section (no access key, no login) lets anyone search
-both databases' already-accepted/public files by name and download/watch them:
+A separate **`/file-search`** section (gated by the same access key as `/link-review`) lets
+anyone you've shared the key with search both databases' already-accepted/public files by
+name and download/watch them:
 
-- `/link-list/` — a single minimal page: a search bar (dark/light mode switch, nothing else) that,
-  once you search, shows up to 10 result tiles per page (file-type icon, name, size) with
-  4-page-window + Prev/Next pagination.
-- `/link-list/file/{plgb|tgfs}/{id}` — a file detail page with Download/Watch buttons, reached by
-  clicking a tile.
+- `/file-search/` — a single minimal page: a search bar (dark/light mode switch, nothing else)
+  that, once you search, shows result tiles (file-type icon, name, size) with 4-page-window +
+  Prev/Next pagination.
+- `/file-search/file/{token}` — a file detail page with Download/Watch buttons, reached by
+  clicking a tile. `{token}` is an opaque, HMAC-signed id (not a raw database id), so it can't
+  be tampered with or enumerated.
 
 ## Project layout
 
@@ -47,7 +49,7 @@ Everything below lives at the repository root:
 ├── Cargo.toml
 ├── Dockerfile
 ├── src/
-│   ├── main.rs                 # entrypoint, router (mounts link_review + link_list), TGFS Mongo connect
+│   ├── main.rs                 # entrypoint, router (mounts link_review + file_search), TGFS Mongo connect
 │   ├── state.rs                # AppState (Mongo collections, cookie key) + TgfsState — shared by both sections
 │   ├── auth.rs                  # session/flash cookies, password hashing — used by link_review
 │   ├── util.rs                  # formatting helpers, template render helper — shared by both sections
@@ -67,22 +69,23 @@ Everything below lives at the repository root:
 │   │       ├── tgfs_review.rs    # /review-tgfs, /submit-tgfs
 │   │       ├── tgfs_done.rs      # /done-tgfs
 │   │       └── tgfs_stats.rs     # /stats-tgfs
-│   └── link_list/                # the public, un-gated /link-list file-search section
+│   └── file_search/              # the access-key-gated /file-search section
 │       ├── mod.rs
 │       ├── models.rs                # ResultTile/FileDetail view models + mime/extension icon picker
 │       ├── search.rs                 # combined PLGB+TGFS file-name search
-│       └── handlers.rs                # /link-list/, /link-list/file/{source}/{id}
+│       ├── token.rs                   # HMAC-signed opaque tokens for /file-search/file/{token}
+│       └── handlers.rs                # /file-search/, /file-search/search, /file-search/file/{token}
 ├── templates/
 │   ├── link_review/          # base.html + all PLGB/TGFS review-system templates
-│   └── link_list/            # search.html, detail.html — standalone, don't extend base.html
+│   └── file_search/           # search.html, detail.html — standalone, don't extend base.html
 └── static/
     ├── style.css              # link-review's stylesheet, unchanged from the original app
-    └── link-list/style.css    # link-list's own stylesheet (light/dark theme variables)
+    └── file-search/style.css  # file-search's own stylesheet (light/dark theme variables)
 ```
 
 All `/link-review/*` routes are relative to the prefix defined as `BASE_PATH` in `src/main.rs`;
-`/link-list/*` routes use `BASE_PATH_LIST`. Both are referenced from templates via Askama's
-`{{ crate::BASE_PATH }}` / `{{ crate::BASE_PATH_LIST }}`.
+`/file-search/*` routes use `BASE_PATH_FILE_SEARCH`. Both are referenced from templates via Askama's
+`{{ crate::BASE_PATH }}` / `{{ crate::BASE_PATH_FILE_SEARCH }}`.
 
 ## Local development
 

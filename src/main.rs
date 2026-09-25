@@ -1,5 +1,5 @@
 mod auth;
-mod link_list;
+mod file_search;
 mod link_review;
 mod state;
 mod util;
@@ -25,7 +25,7 @@ use state::{build_state, AppState, TgfsState};
 pub const BASE_PATH: &str = "/link-review";
 
 /// URL prefix for the file-search section. Gated by the same access key as [`BASE_PATH`].
-pub const BASE_PATH_LIST: &str = "/link-list";
+pub const BASE_PATH_FILE_SEARCH: &str = "/file-search";
 
 /// Name of the cookie that remembers a successful `?key=` check.
 const ACCESS_COOKIE: &str = "link_access";
@@ -147,7 +147,7 @@ async fn build_tgfs_state() -> TgfsState {
     }
 }
 
-/// Gate for everything under [`BASE_PATH`] and [`BASE_PATH_LIST`]: requires a valid
+/// Gate for everything under [`BASE_PATH`] and [`BASE_PATH_FILE_SEARCH`]: requires a valid
 /// `link_access` cookie, or a `?key=` query parameter matching `ACCESS_KEY`, in which
 /// case the cookie is then granted (scoped app-wide so it covers both sections).
 async fn require_access_key(
@@ -241,11 +241,11 @@ async fn main() {
         ));
 
     // File-search section — gated by the same access key as `protected` above.
-    let link_list = Router::new()
-        .route("/", get(link_list::handlers::search))
-        .route("/search", post(link_list::handlers::submit_search))
-        .route("/file/{token}", get(link_list::handlers::file_detail))
-        .nest_service("/static", ServeDir::new("static/link-list"))
+    let file_search = Router::new()
+        .route("/", get(file_search::handlers::search))
+        .route("/search", post(file_search::handlers::submit_search))
+        .route("/file/{token}", get(file_search::handlers::file_detail))
+        .nest_service("/static", ServeDir::new("static/file-search"))
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
             require_access_key,
@@ -254,7 +254,7 @@ async fn main() {
     let app = Router::new()
         .route("/health", get(link_review::handlers::health::health))
         .nest(BASE_PATH, protected)
-        .nest(BASE_PATH_LIST, link_list)
+        .nest(BASE_PATH_FILE_SEARCH, file_search)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
 
