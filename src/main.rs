@@ -175,7 +175,9 @@ async fn require_access_key(
         return (jar, response).into_response();
     }
 
-    (StatusCode::NOT_FOUND, "Not Found").into_response()
+    // Empty body, same as axum's default no-route-matched response — a visitor can't
+    // tell this apart from a URL that was never registered at all.
+    StatusCode::NOT_FOUND.into_response()
 }
 
 #[tokio::main]

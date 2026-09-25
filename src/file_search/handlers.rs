@@ -168,7 +168,9 @@ struct DetailTemplate {
 /// detail/download page, or a bare 404 if it doesn't exist, isn't an already-accepted
 /// /public file, or the token fails signature verification (e.g. tampered with).
 pub async fn file_detail(Path(token): Path<String>, State(state): State<AppState>) -> Response {
-    let not_found = || (StatusCode::NOT_FOUND, "Not Found").into_response();
+    // Empty body, same as axum's default no-route-matched response — a visitor can't
+    // tell this apart from a URL that was never registered at all.
+    let not_found = || StatusCode::NOT_FOUND.into_response();
 
     let Some((source, oid)) = decode_token(state.access_key.as_bytes(), &token) else {
         return not_found();
