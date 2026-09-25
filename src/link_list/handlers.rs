@@ -45,7 +45,7 @@ struct SearchTemplate {
 }
 
 fn build_search_url(query: &str, page: i64) -> String {
-    format!("{}/?q={}&page={}", crate::BASE_PATH_LIST, url_encode(query), page)
+    format!("{}?q={}&page={}", crate::BASE_PATH_LIST, url_encode(query), page)
 }
 
 /// Renders the single `/link-list` page: just the search bar when `?q=` is empty,
@@ -178,6 +178,6 @@ pub async fn file_detail(Path((source, id)): Path<(String, String)>, State(state
 
     render(DetailTemplate {
         detail,
-        back_href: format!("{}/", crate::BASE_PATH_LIST),
+        back_href: crate::BASE_PATH_LIST.to_string(),
     })
 }
