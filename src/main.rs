@@ -72,14 +72,36 @@ fn load_numbered_env(prefix: &str) -> Vec<String> {
     result
 }
 
+/// Env vars required for the full app; if any is missing at startup we skip
+/// building the review/search app entirely and only serve `/health`.
+const REQUIRED_ENV_VARS: &[(&str, &str)] = &[
+    ("ACCESS_KEY", "access gate + cookie encryption for every protected route"),
+    ("PLGB_MONGODB_URI", "PLGB review/search"),
+    ("PLGB_FQDN", "PLGB review/search (dl/watch links)"),
+    ("LINK_REVIEW_USER1", "reviewer login"),
+    ("LINK_REVIEW_USER1_PASS", "reviewer login"),
+    ("TGFS_MONGODB_URI", "TGFS review/search"),
+    ("TGFS_PUBLIC_URL", "TGFS review/search (dl/watch links)"),
+];
+
+/// Returns the subset of [`REQUIRED_ENV_VARS`] that are unset/empty.
+fn missing_required_env_vars() -> Vec<(&'static str, &'static str)> {
+    REQUIRED_ENV_VARS
+        .iter()
+        .copied()
+        .filter(|(name, _)| std::env::var(name).map(|v| v.is_empty()).unwrap_or(true))
+        .collect()
+}
+
 /// Connects to telethon-plgb's Mongo deployment(s) and loads its link-signing
 /// secret, mirroring `tgfs/database/mongodb/__init__.py`'s `MongoDB.connect`.
-async fn build_tgfs_state() -> TgfsState {
+/// Returns `Err` instead of panicking so `main` can fall back to `/health`-only.
+async fn build_tgfs_state() -> Result<TgfsState, String> {
     let mongodb_uri = std::env::var("TGFS_MONGODB_URI")
-        .expect("TGFS_MONGODB_URI must be set (primary Mongo connection string for the TGFS bot)");
+        .map_err(|_| "TGFS_MONGODB_URI must be set (primary Mongo connection string for the TGFS bot)".to_string())?;
     let dbname = std::env::var("TGFS_MONGODB_DBNAME").unwrap_or_else(|_| "TGFS".to_string());
     let mut public_url = std::env::var("TGFS_PUBLIC_URL")
-        .expect("TGFS_PUBLIC_URL must be set (base URL used to build TGFS dl/watch links, e.g. https://tgfs.example.com)")
+        .map_err(|_| "TGFS_PUBLIC_URL must be set (base URL used to build TGFS dl/watch links, e.g. https://tgfs.example.com)".to_string())?
         .trim()
         .trim_end_matches('/')
         .to_string();
@@ -92,14 +114,14 @@ async fn build_tgfs_state() -> TgfsState {
 
     let primary_client = Client::with_uri_str(&mongodb_uri)
         .await
-        .expect("failed to connect to TGFS_MONGODB_URI");
+        .map_err(|err| format!("failed to connect to TGFS_MONGODB_URI: {err}"))?;
     let primary_db = primary_client.database(&dbname);
 
     let mut index_colls = Vec::new();
     for uri in load_numbered_env("TGFS_MONGODB_INDEX_URI") {
         let client = Client::with_uri_str(&uri)
             .await
-            .expect("failed to connect to a TGFS_MONGODB_INDEX_URI* cluster");
+            .map_err(|err| format!("failed to connect to a TGFS_MONGODB_INDEX_URI* cluster: {err}"))?;
         index_colls.push(client.database(&dbname).collection::<Document>("user_files"));
     }
     if index_colls.is_empty() {
@@ -110,7 +132,7 @@ async fn build_tgfs_state() -> TgfsState {
     for uri in load_numbered_env("TGFS_MONGODB_BLOB_URI") {
         let client = Client::with_uri_str(&uri)
             .await
-            .expect("failed to connect to a TGFS_MONGODB_BLOB_URI* cluster");
+            .map_err(|err| format!("failed to connect to a TGFS_MONGODB_BLOB_URI* cluster: {err}"))?;
         blob_colls.push(client.database(&dbname).collection::<Document>("files"));
     }
     if blob_colls.is_empty() {
@@ -121,15 +143,14 @@ async fn build_tgfs_state() -> TgfsState {
     let link_secret = config
         .find_one(doc! { "_id": "link.secret" })
         .await
-        .expect("failed to query TGFS config.link.secret")
+        .map_err(|err| format!("failed to query TGFS config.link.secret: {err}"))?
         .and_then(|d| match d.get("value") {
             Some(Bson::Binary(b)) => Some(b.bytes.clone()),
             _ => None,
         })
-        .expect(
-            "TGFS config.link.secret not found; start the tgfs bot at least once \
-             first so it can generate its link-signing secret",
-        );
+        .ok_or_else(|| {
+            "TGFS config.link.secret not found; start the tgfs bot at least once first so it can generate its link-signing secret".to_string()
+        })?;
 
     let reviewed_index = IndexModel::builder().keys(doc! { "reviewed_at": 1 }).build();
     for coll in &blob_colls {
@@ -138,13 +159,13 @@ async fn build_tgfs_state() -> TgfsState {
         }
     }
 
-    TgfsState {
+    Ok(TgfsState {
         primary_users: primary_db.collection::<Document>("users"),
         index_colls,
         blob_colls,
         link_secret,
         public_url,
-    }
+    })
 }
 
 /// Gate for everything under [`BASE_PATH`] and [`BASE_PATH_FILE_SEARCH`]: requires a valid
@@ -180,85 +201,117 @@ async fn require_access_key(
     StatusCode::NOT_FOUND.into_response()
 }
 
-#[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt::init();
-    dotenvy::dotenv().ok();
-
-    let mongodb_uri = std::env::var("PLGB_MONGODB_URI").expect("PLGB_MONGODB_URI must be set");
+/// Builds the full review/search app state (Mongo connections, reviewer accounts,
+/// TGFS config). Returns `Err` instead of panicking on any missing/invalid config
+/// so `main` can fall back to serving only `/health`.
+async fn build_app_state() -> Result<AppState, String> {
+    let mongodb_uri = std::env::var("PLGB_MONGODB_URI").map_err(|_| "PLGB_MONGODB_URI must be set".to_string())?;
     let access_key = std::env::var("ACCESS_KEY")
-        .expect("ACCESS_KEY must be set (this is the `?key=` value required to reach the app)");
+        .map_err(|_| "ACCESS_KEY must be set (this is the `?key=` value required to reach the app)".to_string())?;
     if access_key.len() < 32 {
-        panic!(
+        return Err(format!(
             "ACCESS_KEY must be at least 32 bytes long (got {}); it's also used to derive the \
              cookie encryption key. Generate one with: openssl rand -hex 32",
             access_key.len()
-        );
+        ));
     }
     let fqdn = std::env::var("PLGB_FQDN")
-        .expect("PLGB_FQDN must be set (base domain used to build dl/watch links, e.g. fcdn.example.com)");
+        .map_err(|_| "PLGB_FQDN must be set (base domain used to build dl/watch links, e.g. fcdn.example.com)".to_string())?;
     let users = load_users_from_env();
     if users.is_empty() {
-        panic!(
-            "no reviewer accounts configured; set LINK_REVIEW_USER1 / LINK_REVIEW_USER1_PASS (and _USER2, _USER3, ... as needed)"
+        return Err(
+            "no reviewer accounts configured; set LINK_REVIEW_USER1 / LINK_REVIEW_USER1_PASS (and _USER2, _USER3, ... as needed)".to_string(),
         );
     }
 
     let client = Client::with_uri_str(&mongodb_uri)
         .await
-        .expect("failed to connect to MongoDB");
-    let tgfs_state = build_tgfs_state().await;
+        .map_err(|err| format!("failed to connect to MongoDB: {err}"))?;
+    let tgfs_state = build_tgfs_state().await?;
     // Cookie encryption is derived from ACCESS_KEY so only one secret needs managing.
     let cookie_key = derive_cookie_key(&access_key);
-    let app_state = build_state(&client, cookie_key, access_key, users, fqdn, tgfs_state);
+    Ok(build_state(&client, cookie_key, access_key, users, fqdn, tgfs_state))
+}
 
-    let index = IndexModel::builder().keys(doc! { "is_public": 1 }).build();
-    if let Err(err) = app_state.files.create_index(index).await {
-        tracing::warn!("failed to create is_public index: {err}");
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt::init();
+    dotenvy::dotenv().ok();
+
+    let missing = missing_required_env_vars();
+    let app_state = if !missing.is_empty() {
+        for (name, used_for) in &missing {
+            tracing::warn!("{name} is not set — {used_for} will not start");
+        }
+        tracing::warn!(
+            "please set these environment variables to start the review/search app: {}",
+            missing.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", ")
+        );
+        None
+    } else {
+        match build_app_state().await {
+            Ok(state) => Some(state),
+            Err(err) => {
+                tracing::warn!("{err}");
+                tracing::warn!("review/search app will not start; please fix the issue above and redeploy");
+                None
+            }
+        }
+    };
+
+    let mut app = Router::new().route("/health", get(link_review::handlers::health::health));
+
+    if let Some(app_state) = app_state {
+        let index = IndexModel::builder().keys(doc! { "is_public": 1 }).build();
+        if let Err(err) = app_state.files.create_index(index).await {
+            tracing::warn!("failed to create is_public index: {err}");
+        }
+
+        let protected = Router::new()
+            .route("/", get(link_review::handlers::pages::index))
+            .route(
+                "/login",
+                get(link_review::handlers::pages::login_get).post(link_review::handlers::pages::login_post),
+            )
+            .route("/logout", get(link_review::handlers::pages::logout))
+            .route("/home", get(link_review::handlers::pages::home))
+            .route("/tgfs", get(link_review::handlers::pages::tgfs))
+            .route("/instructions-plgb", get(link_review::handlers::pages::instructions))
+            .route("/review-plgb", get(link_review::handlers::plgb_review::review))
+            .route("/submit-plgb", post(link_review::handlers::plgb_review::submit))
+            .route("/done-plgb", get(link_review::handlers::plgb_done::done))
+            .route("/stats-plgb", get(link_review::handlers::plgb_stats::stats))
+            .route("/instructions-tgfs", get(link_review::handlers::pages::instructions_tgfs))
+            .route("/review-tgfs", get(link_review::handlers::tgfs_review::review))
+            .route("/submit-tgfs", post(link_review::handlers::tgfs_review::submit))
+            .route("/done-tgfs", get(link_review::handlers::tgfs_done::done))
+            .route("/stats-tgfs", get(link_review::handlers::tgfs_stats::stats))
+            .nest_service("/static", ServeDir::new("static"))
+            .layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                require_access_key,
+            ));
+
+        // File-search section — gated by the same access key as `protected` above.
+        let file_search = Router::new()
+            .route("/", get(file_search::handlers::search))
+            .route("/search", post(file_search::handlers::submit_search))
+            .route("/file/{token}", get(file_search::handlers::file_detail))
+            .nest_service("/static", ServeDir::new("static/file-search"))
+            .layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                require_access_key,
+            ));
+
+        let full = Router::new()
+            .nest(BASE_PATH, protected)
+            .nest(BASE_PATH_FILE_SEARCH, file_search)
+            .with_state(app_state);
+
+        app = app.merge(full);
     }
 
-    let protected = Router::new()
-        .route("/", get(link_review::handlers::pages::index))
-        .route(
-            "/login",
-            get(link_review::handlers::pages::login_get).post(link_review::handlers::pages::login_post),
-        )
-        .route("/logout", get(link_review::handlers::pages::logout))
-        .route("/home", get(link_review::handlers::pages::home))
-        .route("/tgfs", get(link_review::handlers::pages::tgfs))
-        .route("/instructions-plgb", get(link_review::handlers::pages::instructions))
-        .route("/review-plgb", get(link_review::handlers::plgb_review::review))
-        .route("/submit-plgb", post(link_review::handlers::plgb_review::submit))
-        .route("/done-plgb", get(link_review::handlers::plgb_done::done))
-        .route("/stats-plgb", get(link_review::handlers::plgb_stats::stats))
-        .route("/instructions-tgfs", get(link_review::handlers::pages::instructions_tgfs))
-        .route("/review-tgfs", get(link_review::handlers::tgfs_review::review))
-        .route("/submit-tgfs", post(link_review::handlers::tgfs_review::submit))
-        .route("/done-tgfs", get(link_review::handlers::tgfs_done::done))
-        .route("/stats-tgfs", get(link_review::handlers::tgfs_stats::stats))
-        .nest_service("/static", ServeDir::new("static"))
-        .layer(middleware::from_fn_with_state(
-            app_state.clone(),
-            require_access_key,
-        ));
-
-    // File-search section — gated by the same access key as `protected` above.
-    let file_search = Router::new()
-        .route("/", get(file_search::handlers::search))
-        .route("/search", post(file_search::handlers::submit_search))
-        .route("/file/{token}", get(file_search::handlers::file_detail))
-        .nest_service("/static", ServeDir::new("static/file-search"))
-        .layer(middleware::from_fn_with_state(
-            app_state.clone(),
-            require_access_key,
-        ));
-
-    let app = Router::new()
-        .route("/health", get(link_review::handlers::health::health))
-        .nest(BASE_PATH, protected)
-        .nest(BASE_PATH_FILE_SEARCH, file_search)
-        .layer(TraceLayer::new_for_http())
-        .with_state(app_state);
+    let app = app.layer(TraceLayer::new_for_http());
 
     let port: u16 = std::env::var("PORT")
         .ok()
